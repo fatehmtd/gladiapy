@@ -1,0 +1,29 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "gladiapy"
+version = "0.1.0"
+description = "Python client for Gladia API (REST and WebSocket), mirroring the C++ gladiapp API"
+readme = "README.md"
+requires-python = ">=3.9"
+license = "MIT"
+authors = [{ name = "gladiapp contributors" }]
+dependencies = [
+  "requests>=2.31",
+  "websocket-client>=1.8",
+  "python-dotenv>=1.0",
+  "pydantic>=2.6",
+]
+
+[project.urls]
+Homepage = "https://github.com/fatehmtd/gladiapp"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["gladiapp*"]
+exclude = []
