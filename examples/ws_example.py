@@ -2,8 +2,8 @@ import os
 import time
 import wave
 import threading
-from gladiapp.v2 import GladiaWebsocketClient
-from gladiapp.v2.ws import InitializeSessionRequest
+from gladiapy.v2 import GladiaWebsocketClient
+from gladiapy.v2.ws import InitializeSessionRequest
 
 
 def read_wav_pcm_data(path: str) -> bytes:
@@ -23,7 +23,7 @@ def main():
     """
     api_key = os.getenv("GLADIA_API_KEY")
     if not api_key:
-        print("ERROR: Set GLADIA_API_KEY in environment or .env")
+        print("ERROR: Set GLADIA_API_KEY environment variable")
         print("   You can get an API key from: https://gladia.io")
         return False
 
@@ -46,19 +46,24 @@ def main():
     client = GladiaWebsocketClient(api_key)
     
     # Real-time configuration with partial transcripts enabled
+    # Using proper class-based configuration (matching C++ API)
+    messages_config = InitializeSessionRequest.MessagesConfig(
+        receive_final_transcripts=True,
+        receive_partial_transcripts=True,  # Enable partial transcripts for real-time feedback
+        receive_speech_events=False,
+        receive_lifecycle_events=False,
+    )
+    
     init = InitializeSessionRequest(
-        encoding="wav_pcm",
-        bit_depth=16,
-        sample_rate=16000,
+        region=InitializeSessionRequest.Region.US_WEST,
+        encoding=InitializeSessionRequest.Encoding.WAV_PCM,
+        bit_depth=InitializeSessionRequest.BitDepth.BIT_DEPTH_16,
+        sample_rate=InitializeSessionRequest.SampleRate.SAMPLE_RATE_16000,
         channels=1,
+        model=InitializeSessionRequest.Model.SOLARIA_1,
         endpointing=1.5,  # Wait 1.5s of silence before finalizing
         maximum_duration_without_endpointing=45,  # Max 45s without silence
-        messages_config={
-            "receive_final_transcripts": True,
-            "receive_partial_transcripts": True,  # Enable partial transcripts for real-time feedback
-            "receive_speech_events": False,
-            "receive_lifecycle_events": False,
-        },
+        messages_config=messages_config,
     )
 
     print("Creating WebSocket session...")
@@ -67,7 +72,7 @@ def main():
         print("ERROR: Failed to create session")
         return False
 
-    session_info = session.getSessionInfo()
+    session_info = session.get_session_info()
     session_id = session_info["id"]
     print(f"Session created: {session_id}")
     
@@ -165,14 +170,14 @@ def main():
             print(f"Error processing callback data: {e}")
             print(f"Raw callback data: {data}")
 
-    session.setOnConnectedCallback(on_connected)
-    session.setOnDisconnectedCallback(on_disconnected)
-    session.setOnErrorCallback(on_error)
-    session.setOnTranscriptCallback(on_partial_transcript)  # Handle partial transcripts
-    session.setOnFinalTranscriptCallback(on_final_transcript)
+    session.set_on_connected_callback(on_connected)
+    session.set_on_disconnected_callback(on_disconnected)
+    session.set_on_error_callback(on_error)
+    session.set_on_transcript_callback(on_partial_transcript)  # Handle partial transcripts
+    session.set_on_final_transcript_callback(on_final_transcript)
 
     print("Connecting to WebSocket...")
-    if not session.connectAndStart():
+    if not session.connect_and_start():
         print("ERROR: Failed to start WebSocket connection")
         return False
     
@@ -195,7 +200,7 @@ def main():
                 print("[MONITOR] WebSocket monitor timeout - checking status...")
                 # Try to get status one more time
                 try:
-                    result = client.getResult(session_id)
+                    result = client.get_result(session_id)
                     print(f"[MONITOR] Final status check: {result.status}")
                 except Exception as e:
                     print(f"[MONITOR] Status check failed: {e}")
@@ -226,7 +231,7 @@ def main():
             chunk = audio[i:i + chunk_size]
             actual_size = min(chunk_size, len(audio) - i)
             
-            session.sendAudioBinary(chunk, actual_size)
+            session.send_audio_binary(chunk, actual_size)
             chunks_sent += 1
             
             progress = (i + actual_size) / len(audio) * 100
@@ -239,7 +244,7 @@ def main():
         
         # Send stop signal
         print("[STREAM] Sending stop signal...")
-        session.sendStopSignal()
+        session.send_stop_signal()
         print("[STREAM] Stop signal sent successfully")
         
     except Exception as e:
@@ -266,7 +271,7 @@ def main():
                 print("WebSocket finished but no transcription data captured")
                 # Try one final status check
                 try:
-                    result = client.getResult(session_id)
+                    result = client.get_result(session_id)
                     print(f"Final status via API: {result.status}")
                     if result.status == 'done':
                         success = True
@@ -277,7 +282,7 @@ def main():
         print("Checking final status...")
         
         try:
-            result = client.getResult(session_id)
+            result = client.get_result(session_id)
             print(f"Timeout status check: {result.status}")
             
             if result.status == 'done':
@@ -317,7 +322,7 @@ def main():
     
     # Clean up
     try:
-        client.deleteResult(session_id)
+        client.delete_result(session_id)
         print(f"Cleaned up session: {session_id}")
     except Exception as e:
         print(f"WARNING: Failed to delete session {session_id}: {e}")

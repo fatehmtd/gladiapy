@@ -1,3 +1,4 @@
+
 from __future__ import annotations
 from typing import List, Optional, Dict, Any
 from pydantic import BaseModel, Field
@@ -5,7 +6,7 @@ from pydantic import BaseModel, Field
 class UploadAudioMetadata(BaseModel):
     """
     Metadata for uploaded audio files.
-    """    
+    """
     id: str
     filename: str
     extension: str
@@ -13,22 +14,19 @@ class UploadAudioMetadata(BaseModel):
     audio_duration: float
     number_of_channels: int
 
-
 class UploadResponse(BaseModel):
     """
     Response model for audio file uploads.
-    """    
+    """
     audio_url: str
     audio_metadata: UploadAudioMetadata
-
 
 class TranscriptionJobResponse(BaseModel):
     """
     Response model for transcription job submission.
-    """    
+    """
     id: str
     result_url: str
-
 
 class Word(BaseModel):
     """Individual word with timing and confidence data."""
@@ -36,7 +34,6 @@ class Word(BaseModel):
     start: float
     end: float
     confidence: float
-
 
 class Utterance(BaseModel):
     """Speech segment with timing, text, and word-level details."""
@@ -49,12 +46,10 @@ class Utterance(BaseModel):
     text: str
     speaker: Optional[int] = None
 
-
 class Subtitle(BaseModel):
     """Subtitle data in various formats (SRT, VTT, etc.)."""
     format: str
     subtitles: str
-
 
 class Metadata(BaseModel):
     """Processing metadata for transcription jobs."""
@@ -63,20 +58,55 @@ class Metadata(BaseModel):
     billing_time: float
     transcription_time: float
 
+class ChapterizationResult(BaseModel):
+    """Chapterization results with segments and summaries."""
+    success: Optional[bool] = None
+    is_empty: Optional[bool] = None
+    exec_time: Optional[float] = None
+    error: Optional[Dict[str, Any]] = None
+    results: Optional[List[Dict[str, Any]]] = None
+
+class NamedEntityRecognitionResult(BaseModel):
+    """Named entity recognition results."""
+    success: Optional[bool] = None
+    is_empty: Optional[bool] = None
+    exec_time: Optional[float] = None
+    error: Optional[Dict[str, Any]] = None
+    entity: Optional[Any] = None
+
+class SummarizationResult(BaseModel):
+    """Summarization results as returned by the API."""
+    success: Optional[bool] = None
+    is_empty: Optional[bool] = None
+    exec_time: Optional[float] = None
+    error: Optional[Dict[str, Any]] = None
+    results: Optional[Any] = None
 
 class TranscriptionObjectResult(BaseModel):
-    """Complete transcription results with text, utterances, and subtitles."""
+    """
+    Complete transcription results with text, utterances, subtitles, translations,
+    chapterization, and named entity recognition.
+    """
     full_transcript: str
     languages: List[str] = Field(default_factory=list)
     utterances: List[Utterance] = Field(default_factory=list)
     subtitles: List[Subtitle] = Field(default_factory=list)
-
+    translation: Optional[Dict[str, 'TranscriptionObjectResult']] = None
+    chapterization: Optional[ChapterizationResult] = None
+    named_entity_recognition: Optional[NamedEntityRecognitionResult] = None
+    summarization: Optional[SummarizationResult] = None
 
 class TranscriptionObject(BaseModel):
-    """Container for transcription results and processing metadata."""
+    """
+    Container for transcription results, processing metadata, translations,
+    chapterization, and named entity recognition.
+    """
     metadata: Metadata
     transcription: Optional[TranscriptionObjectResult] = None
-
+    translation: Optional[Dict[str, 'TranscriptionObjectResult']] = None
+    chapterization: Optional[ChapterizationResult] = None
+    named_entity_recognition: Optional[NamedEntityRecognitionResult] = None
+    summarization: Optional[SummarizationResult] = None
 
 class TranscriptionFile(BaseModel):
     """Audio file information for transcription jobs."""
@@ -85,7 +115,6 @@ class TranscriptionFile(BaseModel):
     source: Optional[str] = None
     audio_duration: Optional[float] = None
     number_of_channels: int
-
 
 class TranscriptionResult(BaseModel):
     """Complete transcription job result with status and data."""
@@ -101,7 +130,6 @@ class TranscriptionResult(BaseModel):
     request_params: Optional[Dict[str, Any]] = None
     result: Optional[TranscriptionObject] = None
 
-
 class ListResultsPage(BaseModel):
     """Paginated list of transcription results."""
     first: str
@@ -109,12 +137,10 @@ class ListResultsPage(BaseModel):
     next: Optional[str] = None
     items: List[TranscriptionResult] = Field(default_factory=list)
 
-
 class CallbackConfig(BaseModel):
     """Configuration for webhook callbacks on job completion."""
     url: str
     method: str = Field(pattern=r"^(POST|PUT)$")
-
 
 class SubtitlesConfig(BaseModel):
     """Configuration for subtitle generation (SRT, VTT formats)."""
@@ -123,7 +149,6 @@ class SubtitlesConfig(BaseModel):
     maximum_rows_per_caption: Optional[int] = None
     style: Optional[str] = "DEFAULT"
 
-
 class DiarizationConfig(BaseModel):
     """Configuration for speaker diarization (who spoke when)."""
     number_of_speakers: Optional[int] = None
@@ -131,10 +156,9 @@ class DiarizationConfig(BaseModel):
     max_speakers: Optional[int] = None
     enhanced: Optional[bool] = None
 
-
 class TranslationConfig(BaseModel):
     """Configuration for multi-language translation."""
-    model: str = "BASE"
+    model: str = "base"  # API expects lowercase: "base" or "enhanced"
     target_languages: List[str] = Field(default_factory=list)
     match_original_utterances: Optional[bool] = True
     lipsync: Optional[bool] = True
@@ -142,32 +166,26 @@ class TranslationConfig(BaseModel):
     context: Optional[str] = None
     informal: Optional[bool] = False
 
-
 class SummarizationConfig(BaseModel):
     """Configuration for AI-powered content summarization."""
     types: List[str]
-
 
 class CustomSpellingConfig(BaseModel):
     """Configuration for custom spelling corrections and vocabulary."""
     spelling_dictionary: Dict[str, List[str]]
 
-
 class StructuredDataExtractionConfig(BaseModel):
     """Configuration for extracting structured data from transcripts."""
     classes: List[str]
-
 
 class AudioToLLMConfig(BaseModel):
     """Configuration for LLM processing of audio transcripts."""
     prompts: List[str]
 
-
 class LanguageConfig(BaseModel):
     """Configuration for language detection and code-switching."""
     languages: List[str]
     code_switching: bool = False
-
 
 class TranscriptionRequest(BaseModel):
     """Complete configuration for transcription jobs with all available features."""
@@ -208,7 +226,6 @@ class TranscriptionRequest(BaseModel):
     display_mode: bool = False
     punctuation_enhanced: bool = False
     language_config: Optional[LanguageConfig] = None
-
 
 class ListResultsQuery(BaseModel):
     """Query parameters for listing transcription results with pagination and filtering."""

@@ -13,7 +13,6 @@ authors = [{ name = "gladiapp contributors" }]
 dependencies = [
   "requests>=2.31",
   "websocket-client>=1.8",
-  "python-dotenv>=1.0",
   "pydantic>=2.6",
 ]
 

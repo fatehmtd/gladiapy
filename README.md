@@ -1,76 +1,107 @@
 # gladiapy
 
-Python client for the Gladia speech-to-text API. Supports both REST and WebSocket transcription.
+Python client library for the Gladia speech-to-text API. Provides synchronous REST API access and asynchronous WebSocket streaming for audio transcription with advanced features including translation, summarization, sentiment analysis, and named entity recognition.
 
 ## Features
 
-- REST API for batch transcription jobs
-- WebSocket API for real-time streaming transcription  
-- Type-safe models with Pydantic
-- Word-level timing and confidence scores
-- Multi-language support with translation
+- REST API client for batch audio transcription jobs
+- WebSocket client for real-time streaming transcription
+- Advanced processing features: translation, summarization, chapterization, sentiment analysis, named entity recognition
+- Type-safe data models using Pydantic
+- Word-level timing information and confidence scores
+- Multi-language support with automatic language detection
+- Custom vocabulary and speaker diarization
+- Subtitle generation
 
 ## Installation
 
-### From PyPI (when published)
-```bash
-pip install gladiapy
-```
-
 ### From Source
 ```bash
-git clone https://github.com/fatehmtd/gladiapp.git
-cd gladiapp
+git clone https://github.com/fatehmtd/gladiapy.git
+cd gladiapy
 pip install -e .
-```
-
-### From GitHub Releases
-Download the `.whl` file from [releases](https://github.com/fatehmtd/gladiapp/releases) and install:
-```bash
-pip install gladiapy-0.1.0-py3-none-any.whl
 ```
 
 ## Quick Start
 
 ```python
 import os
-from gladiapp.v2 import GladiaRestClient
-from gladiapp.v2.rest_models import TranscriptionRequest
+from gladiapy.v2 import GladiaRestClient, GladiaError
+from gladiapy.v2.rest_models import TranscriptionRequest
 
 client = GladiaRestClient(os.getenv("GLADIA_API_KEY"))
 
-# Upload and transcribe
-upload = client.upload("audio.wav")
-request = TranscriptionRequest(audio_url=upload.audio_url)
-job = client.preRecorded(request)
+try:
+    # Upload audio file
+    upload_result = client.upload("audio.wav")
+    
+    # Create transcription request
+    request = TranscriptionRequest(audio_url=upload_result.audio_url)
+    job = client.pre_recorded(request)
 
-# Get results
-result = client.getResult(job.id)
-print(result.result.transcription.full_transcript)
+    # Poll for completion
+    while True:
+        result = client.get_result(job.id)
+        if result.status == "done":
+            print(result.result.transcription.full_transcript)
+            break
+        elif result.status == "error":
+            print(f"Transcription failed: {result.error_code}")
+            break
+        time.sleep(3)
+        
+    # Clean up
+    client.delete_result(job.id)
+    
+except GladiaError as e:
+    print(f"API error [{e.status_code}]: {e.message}")
 ```
 
-## Setup
+## Configuration
+
+Set your Gladia API key as an environment variable:
 
 ```bash
 export GLADIA_API_KEY="your-api-key"
 ```
 
-## Documentation
-
-See [API.md](API.md) for complete API reference and examples.
-
 ## Examples
 
-Run the included examples:
+The library includes comprehensive examples demonstrating all features:
 
 ```bash
-# REST API batch transcription
+# Basic REST API transcription
 python examples/rest_example.py
 
-# WebSocket real-time transcription  
+# Real-time WebSocket transcription
 python examples/ws_example.py
+
+# Advanced processing features
+python examples/sentiment_analysis_example.py
+python examples/summarization_example.py
+python examples/chapterization_example.py
+python examples/named_entity_recognition_example.py
+python examples/translation_example.py
+
+# WebSocket with advanced features
+python examples/websocket_sentiment_example.py
+python examples/websocket_translation_example.py
+
+# Additional capabilities
+python examples/speaker_diarization_example.py
+python examples/subtitles_example.py
+python examples/custom_vocabulary_example.py
 ```
+
+## API Reference
+
+Complete API documentation and usage examples are available in [API.md](API.md).
 
 ## Requirements
 
-Python 3.9+ with requests, websocket-client, pydantic, and python-dotenv.
+- Python 3.9 or higher
+- Dependencies: requests, websocket-client, pydantic
+
+## License
+
+See LICENSE file for terms and conditions.

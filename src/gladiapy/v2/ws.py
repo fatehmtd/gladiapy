@@ -1,51 +1,11 @@
-from __future__ import annotations
-import os
-import json
-import threading
-import time
-from dataclasses import dataclass
-from typing import Callable, Optional, Any, Dict, TYPE_CHECKING
-from websocket import WebSocketApp
-from .constants import headers as H, common as C
-from .errors import TranscriptionError
-from dotenv import load_dotenv
-import requests
-
-# Import for type hints - avoid circular import
-if TYPE_CHECKING:
-    from .rest_models import TranscriptionResult
-
-
-class events:
-    AUDIO_CHUNK = "audio_chunk"
-    STOP_RECORDING = "stop_recording"
-    SPEECH_START = "speech_start"
-    SPEECH_END = "speech_end"
-    TRANSCRIPT = "transcript"
-    TRANSLATION = "translation"
-    NAMED_ENTITY_RECOGNITION = "named_entity_recognition"
-    SENTIMENT_ANALYSIS = "sentiment_analysis"
-    POST_TRANSCRIPTION = "post_transcript"
-    FINAL_TRANSCRIPTION = "post_final_transcript"
-    CHAPTERIZATION = "post_chapterization"
-    SUMMARIZATION = "post_summarization"
-    START_SESSION = "start_session"
-    END_SESSION = "end_session"
-    START_RECORDING = "start_recording"
-    END_RECORDING = "end_recording"
-
-
-def _api_base_url() -> str:
-    return f"https://{C.HOST}"
-
 
 """
 Gladia WebSocket client for real-time audio transcription.
 
-This module provides a Pythonic API mirroring the C++ gladiapp WebSocket client, supporting all event types, session lifecycle, and typed event payloads.
+This module provides a Pythonic API for gladiapy WebSocket client, supporting all event types, session lifecycle, and typed event payloads.
 
 Usage:
-    from gladiapp.v2.ws import GladiaWebsocketClient, InitializeSessionRequest
+    from gladiapy.v2.ws import GladiaWebsocketClient, InitializeSessionRequest
     client = GladiaWebsocketClient(api_key)
     session = client.connect(InitializeSessionRequest(...))
     session.set_on_transcript_callback(lambda transcript: print(transcript.text))
@@ -55,18 +15,22 @@ Usage:
     session.disconnect()
 """
 
+from __future__ import annotations
 import os
 import json
 import threading
 import time
 import base64
-from dataclasses import dataclass
-from typing import Callable, Optional, Any, Dict, List
+from dataclasses import dataclass, asdict, fields
+from typing import Callable, Optional, Any, Dict, List, TYPE_CHECKING
 from websocket import WebSocketApp
 from .constants import headers as H, common as C
-from .errors import TranscriptionError
-from dotenv import load_dotenv
+from .errors import GladiaError
 import requests
+
+# Import for type hints - avoid circular import
+if TYPE_CHECKING:
+    from .rest_models import TranscriptionResult
 
 __all__ = [
     "GladiaWebsocketClient",
@@ -74,6 +38,61 @@ __all__ = [
     "InitializeSessionRequest",
     "events",
 ]
+
+
+def _api_base_url() -> str:
+    return f"https://{C.HOST}"
+
+
+def _dataclass_to_dict(obj: Any, exclude_none: bool = True) -> Any:
+    """
+    Convert a dataclass instance to a dictionary, recursively handling nested dataclasses.
+    
+    Args:
+        obj: Dataclass instance to convert
+        exclude_none: Whether to exclude None values from the output
+    
+    Returns:
+        Dictionary representation suitable for JSON serialization
+    """
+    if not hasattr(obj, '__dataclass_fields__'):
+        # Not a dataclass, return as-is
+        if isinstance(obj, (list, tuple)):
+            return [_dataclass_to_dict(item, exclude_none) for item in obj]
+        elif isinstance(obj, dict):
+            return {k: _dataclass_to_dict(v, exclude_none) for k, v in obj.items()}
+        return obj
+    
+    result = {}
+    for field in fields(obj):
+        value = getattr(obj, field.name)
+        
+        # Skip None values if requested
+        if exclude_none and value is None:
+            continue
+        
+        # Recursively convert nested dataclasses
+        if hasattr(value, '__dataclass_fields__'):
+            result[field.name] = _dataclass_to_dict(value, exclude_none)
+        elif isinstance(value, (list, tuple)):
+            # Handle lists/tuples that might contain dataclasses
+            converted_list = []
+            for item in value:
+                if hasattr(item, '__dataclass_fields__'):
+                    converted_list.append(_dataclass_to_dict(item, exclude_none))
+                else:
+                    converted_list.append(item)
+            if converted_list or not exclude_none:  # Include empty lists if not excluding None
+                result[field.name] = converted_list
+        elif isinstance(value, dict):
+            # Handle dicts that might contain dataclasses
+            result[field.name] = {k: _dataclass_to_dict(v, exclude_none) for k, v in value.items()}
+        else:
+            # Primitive value
+            result[field.name] = value
+    
+    return result
+
 
 class events:
     AUDIO_CHUNK = "audio_chunk"
@@ -95,55 +114,200 @@ class events:
 
 @dataclass
 class InitializeSessionRequest:
-    # Minimal subset for now; can be expanded to full parity.
+    """Contains the parameters for initializing a WebSocket session."""
+    
+    # Enums
+    class Region:
+        US_WEST = "us-west"
+        EU_WEST = "eu-west"
+    
+    class Encoding:
+        WAV_PCM = "wav/pcm"
+        WAV_ALAW = "wav/alaw"
+        WAV_ULAW = "wav/ulaw"
+    
+    class BitDepth:
+        BIT_DEPTH_8 = 8
+        BIT_DEPTH_16 = 16
+        BIT_DEPTH_24 = 24
+        BIT_DEPTH_32 = 32
+    
+    class SampleRate:
+        SAMPLE_RATE_8000 = 8000
+        SAMPLE_RATE_16000 = 16000
+        SAMPLE_RATE_32000 = 32000
+        SAMPLE_RATE_44100 = 44100
+        SAMPLE_RATE_48000 = 48000
+    
+    class Model:
+        SOLARIA_1 = "solaria-1"
+    
+    @dataclass
+    class LanguageConfig:
+        """Language configuration"""
+        languages: Optional[List[str]] = None
+        code_switching: bool = False
+        
+        def __post_init__(self):
+            if self.languages is None:
+                self.languages = []
+    
+    @dataclass
+    class PreProcessing:
+        """Pre-processing configuration"""
+        audio_enhancer: bool = False
+        speech_threshold: float = 0.6  # VAD threshold, between 0 (Permissive) and 1 (Strict)
+    
+    @dataclass
+    class RealtimeProcessing:
+        """Real-time processing configuration"""
+        
+        @dataclass
+        class Vocabulary:
+            """Represents a single vocabulary entry"""
+            value: str = ""
+            intensity: float = 0.5
+            pronunciations: Optional[List[str]] = None
+            language: str = "en"
+            
+            def __post_init__(self):
+                if self.pronunciations is None:
+                    self.pronunciations = []
+        
+        @dataclass
+        class CustomVocabularyConfig:
+            """Configuration for custom vocabulary"""
+            vocabulary: Optional[List["InitializeSessionRequest.RealtimeProcessing.Vocabulary"]] = None
+            default_intensity: Optional[float] = 0.5
+        
+        @dataclass
+        class CustomSpellingConfig:
+            """Configuration for custom spelling"""
+            spelling_dictionary: Optional[Dict[str, List[str]]] = None
+            
+            def __post_init__(self):
+                if self.spelling_dictionary is None:
+                    self.spelling_dictionary = {}
+        
+        @dataclass
+        class TranslationConfig:
+            """Configuration for audio translation"""
+            
+            class Model:
+                BASE = "base"
+                ENHANCED = "enhanced"
+            
+            model: str = "base"
+            target_languages: Optional[List[str]] = None
+            match_original_utterances: Optional[bool] = True
+            lipsync: Optional[bool] = True
+            context_adaptation: Optional[bool] = False
+            context: Optional[str] = None
+            informal: Optional[bool] = False
+            
+            def __post_init__(self):
+                if self.target_languages is None:
+                    self.target_languages = []
+        
+        custom_vocabulary: bool = False
+        custom_vocabulary_config: Optional[CustomVocabularyConfig] = None
+        custom_spelling: bool = False
+        custom_spelling_config: Optional[CustomSpellingConfig] = None
+        translation: bool = False
+        translation_config: Optional[TranslationConfig] = None
+        named_entity_recognition: Optional[bool] = False
+        sentiment_analysis: Optional[bool] = False
+    
+    @dataclass
+    class PostProcessing:
+        """Configuration for post-processing"""
+        
+        @dataclass
+        class SummarizationConfig:
+            """Configuration for summarization"""
+            
+            class Type:
+                GENERAL = "general"
+                BULLET_POINTS = "bullet_points"
+                CONCISE = "concise"
+            
+            type: str = "general"
+        
+        summarization: Optional[bool] = False
+        summarization_config: Optional[SummarizationConfig] = None
+        chapterization: Optional[bool] = False
+    
+    @dataclass
+    class MessagesConfig:
+        """Configuration for message handling"""
+        receive_partial_transcripts: Optional[bool] = False
+        receive_final_transcripts: Optional[bool] = True
+        receive_speech_events: Optional[bool] = True
+        receive_pre_processing_events: Optional[bool] = True
+        receive_realtime_processing_events: Optional[bool] = True
+        receive_post_processing_events: Optional[bool] = True
+        receive_acknowledgments: Optional[bool] = True
+        receive_errors: Optional[bool] = True
+        receive_lifecycle_events: Optional[bool] = True
+    
+    @dataclass
+    class CallbackConfig:
+        """Configuration for callbacks"""
+        url: Optional[str] = None
+        receive_partial_transcripts: Optional[bool] = False
+        receive_final_transcripts: Optional[bool] = True
+        receive_speech_events: Optional[bool] = False
+        receive_pre_processing_events: Optional[bool] = True
+        receive_realtime_processing_events: Optional[bool] = True
+        receive_post_processing_events: Optional[bool] = True
+        receive_acknowledgments: Optional[bool] = False
+        receive_errors: Optional[bool] = False
+        receive_lifecycle_events: Optional[bool] = True
+    
+    # Main fields
     region: str = "us-west"
-    encoding: str = "wav_pcm"
+    encoding: str = "wav/pcm"
     bit_depth: int = 16
     sample_rate: int = 16000
     channels: int = 1
+    custom_metadata: Optional[str] = None
     model: str = "solaria-1"
     endpointing: float = 0.05
     maximum_duration_without_endpointing: int = 5
-    messages_config: Optional[Dict[str, Any]] = None
-    realtime_processing: Optional[Dict[str, Any]] = None
-    post_processing: Optional[Dict[str, Any]] = None
-    custom_metadata: Optional[str] = None
+    language_config: Optional[LanguageConfig] = None
+    pre_processing: Optional[PreProcessing] = None
+    realtime_processing: Optional[RealtimeProcessing] = None
+    post_processing: Optional[PostProcessing] = None
+    messages_config: Optional[MessagesConfig] = None
+    callback: Optional[bool] = False
+    callback_config: Optional[CallbackConfig] = None
 
     def to_json(self) -> Dict[str, Any]:
-        # Convert encoding format: wav_pcm -> wav/pcm
-        encoding = self.encoding.replace("_", "/") if self.encoding else "wav/pcm"
+        """
+        Convert this request to a JSON-serializable dictionary.
+        Uses Python's dataclass introspection for clean, automatic conversion.
+        """
+        # Convert the entire dataclass hierarchy to dict, excluding None values
+        result = _dataclass_to_dict(self, exclude_none=True)
         
-        return {
-            # region is passed in URL query param, not in body
-            "encoding": encoding,
-            "bit_depth": self.bit_depth,
-            "sample_rate": self.sample_rate,
-            "channels": self.channels,
-            "model": self.model,
-            "endpointing": self.endpointing,
-            "maximum_duration_without_endpointing": self.maximum_duration_without_endpointing,
-            **({"messages_config": self.messages_config} if self.messages_config else {}),
-            **({"realtime_processing": self.realtime_processing} if self.realtime_processing else {}),
-            **({"post_processing": self.post_processing} if self.post_processing else {}),
-            **({"custom_metadata": self.custom_metadata} if self.custom_metadata else {}),
-        }
+        # Region is passed as URL query param, not in body, so exclude it
+        result.pop('region', None)
+        
+        return result
 
 
 class GladiaWebsocketClient:
     """Client for Gladia WebSocket API real-time transcription."""
-    
-    def __init__(self, api_key: Optional[str] = None) -> None:
-        load_dotenv()
-        self.api_key = api_key
-        if not self.api_key:
-            raise ValueError("API key is required (set GLADIA_API_KEY or pass api_key)")
+
+    def __init__(self, api_key: str) -> None:
+        self.api_key: str = api_key
         self._http = requests.Session()
         self._http.headers.update({
             "User-Agent": C.USER_AGENT,
             H.X_GLADIA_KEY: self.api_key,
         })
 
-    def connect(self, init_request: InitializeSessionRequest, transcription_error: Optional[TranscriptionError] = None) -> Optional["GladiaWebsocketClientSession"]:
+    def connect(self, init_request: InitializeSessionRequest) -> "GladiaWebsocketClientSession":
         """Create WebSocket session for real-time transcription.
         
         Args:
@@ -151,33 +315,26 @@ class GladiaWebsocketClient:
             
         Returns:
             GladiaWebsocketClientSession for streaming audio
+            
+        Raises:
+            GladiaError: If session creation fails with API error details
+            requests.RequestException: For network errors
+            ValueError: If response is missing session_id or ws_url
         """
         # Start session via REST to get ws URL and ID, with region as query param (as in C++ impl)
         region = init_request.region
         url = _api_base_url() + f"{C.LIVE_ENDPOINT}?region={region}"
         resp = self._http.post(url, json=init_request.to_json())
         if resp.status_code >= 400:
-            if transcription_error is not None:
-                try:
-                    data = resp.json()
-                except Exception:
-                    data = {"status": resp.status_code, "message": resp.text}
-                te = TranscriptionError.from_json(data)
-                transcription_error.timestamp = getattr(te, "timestamp", "")
-                transcription_error.path = getattr(te, "path", "")
-                transcription_error.request_id = te.request_id
-                transcription_error.status_code = te.status_code
-                transcription_error.message = te.message
-                transcription_error.validation_errors = te.validation_errors
-            resp.raise_for_status()
+            raise GladiaError.from_response(resp, "Failed to create WebSocket session")
         data = resp.json()
         session_id = data.get("id")
         ws_url = data.get("url")
         if not session_id or not ws_url:
-            return None
+            raise ValueError(f"Invalid response: missing session_id or ws_url: {data}")
         return GladiaWebsocketClientSession(session_id=session_id, ws_url=ws_url, api_key=self.api_key)
 
-    def get_result(self, id: str, transcription_error: Optional[TranscriptionError] = None) -> "TranscriptionResult":
+    def get_result(self, id: str) -> "TranscriptionResult":
         """Get WebSocket session transcription results.
         
         Args:
@@ -185,27 +342,19 @@ class GladiaWebsocketClient:
             
         Returns:
             TranscriptionResult with final transcription data
+            
+        Raises:
+            GladiaError: If request fails with API error details
+            requests.RequestException: For network errors
         """
         from .rest_models import TranscriptionResult
         url = _api_base_url() + f"{C.LIVE_ENDPOINT}/{id}"
         resp = self._http.get(url)
         if resp.status_code >= 400:
-            if transcription_error is not None:
-                try:
-                    data = resp.json()
-                except Exception:
-                    data = {"status": resp.status_code, "message": resp.text}
-                te = TranscriptionError.from_json(data)
-                transcription_error.timestamp = getattr(te, "timestamp", "")
-                transcription_error.path = getattr(te, "path", "")
-                transcription_error.request_id = te.request_id
-                transcription_error.status_code = te.status_code
-                transcription_error.message = te.message
-                transcription_error.validation_errors = te.validation_errors
-            resp.raise_for_status()
+            raise GladiaError.from_response(resp, f"Failed to get result for session {id}")
         return TranscriptionResult.model_validate(resp.json())
 
-    def delete_result(self, id: str, transcription_error: Optional[TranscriptionError] = None) -> bool:
+    def delete_result(self, id: str) -> bool:
         """Delete WebSocket session transcription results.
         
         Args:
@@ -213,23 +362,15 @@ class GladiaWebsocketClient:
             
         Returns:
             bool: True if deletion was successful
+            
+        Raises:
+            GladiaError: If deletion fails with API error details
+            requests.RequestException: For network errors
         """
         url = _api_base_url() + f"{C.LIVE_ENDPOINT}/{id}"
         resp = self._http.delete(url)
         if resp.status_code >= 400:
-            if transcription_error is not None:
-                try:
-                    data = resp.json()
-                except Exception:
-                    data = {"status": resp.status_code, "message": resp.text}
-                te = TranscriptionError.from_json(data)
-                transcription_error.timestamp = getattr(te, "timestamp", "")
-                transcription_error.path = getattr(te, "path", "")
-                transcription_error.request_id = te.request_id
-                transcription_error.status_code = te.status_code
-                transcription_error.message = te.message
-                transcription_error.validation_errors = te.validation_errors
-            resp.raise_for_status()
+            raise GladiaError.from_response(resp, f"Failed to delete session {id}")
         return True
 
 
@@ -375,7 +516,6 @@ class GladiaWebsocketClientSession:
     def send_audio_json(self, audio_data: bytes | bytearray | memoryview, size: int) -> bool:
         if not self._ws:
             return False
-        import base64
         chunk_b64 = base64.b64encode(bytes(audio_data[:size])).decode("ascii")
         payload = json.dumps({"type": events.AUDIO_CHUNK, "data": {"chunk": chunk_b64}})
         self._ws.send(payload)
