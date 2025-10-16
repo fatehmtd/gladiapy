@@ -1,18 +1,14 @@
 
-import os
 import time
-import requests
-import json
 from typing import Any
 
 from gladiapy.v2 import GladiaRestClient, GladiaError
-from gladiapy.v2.rest_models import TranscriptionRequest
+from gladiapy.v2.rest_models import TranscriptionRequest, NamedEntityRecognitionResult
 
 
 def main() -> bool:
     import os
     print(f"Current working directory: {os.getcwd()}")
-    print(f"About to fetch raw API response for job_id: {job_id}")
     api_key = os.getenv("GLADIA_API_KEY")
     if not api_key:
         print("ERROR: Set GLADIA_API_KEY in environment")
@@ -85,15 +81,10 @@ def main() -> bool:
         print("-" * 40)
 
         # Prefer top-level NER results if present; otherwise check nested
-        ner_obj = None
-        rr = result.result
-        if rr is not None:
-            ner_obj = getattr(rr, "named_entity_recognition", None)
-        if ner_obj is None and transcription is not None:
-            ner_obj = getattr(transcription, "named_entity_recognition", None)
+        named_entity_recognition = result.result.named_entity_recognition if result.result else None
 
-        if ner_obj is not None:
-            _print_ner(ner_obj)
+        if named_entity_recognition is not None:
+            _print_ner(named_entity_recognition)
         else:
             print("No named entity recognition data available in the response.")
 
@@ -137,18 +128,18 @@ def main() -> bool:
                 pass
 
 
-def _print_ner(ner_obj: Any) -> None:
+def _print_ner(named_entity_recognition: NamedEntityRecognitionResult) -> None:
     # Try to handle the NamedEntityRecognitionResult model or plain dicts
-    container = None
-    if hasattr(ner_obj, "entity"):
-        container = getattr(ner_obj, "entity")
-    else:
-        container = ner_obj
+    print("Named Entity Recognition result: ", named_entity_recognition.success, ", is empty: ", named_entity_recognition.is_empty)
+    if(named_entity_recognition.success and named_entity_recognition.entity):
+        entities = named_entity_recognition.entity
+        if isinstance(entities, list):
+            for _, entity in enumerate(entities):
+                print("entity: ", entity)
+        else:
+            print("entity: ", entities)
 
-    if isinstance(container, dict):
-        for k, v in container.items():
-            if isinstance(v, list):
-                print(f"{k}:")
-                for item in v:
-                    print(f"  {item}")
     
+if __name__ == "__main__":
+    if not main():
+        print("Named Entity Recognition example encountered issues.")

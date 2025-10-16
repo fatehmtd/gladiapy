@@ -1,20 +1,3 @@
-
-"""
-Gladia WebSocket client for real-time audio transcription.
-
-This module provides a Pythonic API for gladiapy WebSocket client, supporting all event types, session lifecycle, and typed event payloads.
-
-Usage:
-    from gladiapy.v2.ws import GladiaWebsocketClient, InitializeSessionRequest
-    client = GladiaWebsocketClient(api_key)
-    session = client.connect(InitializeSessionRequest(...))
-    session.set_on_transcript_callback(lambda transcript: print(transcript.text))
-    session.connect_and_start()
-    session.send_audio_binary(audio_bytes, len(audio_bytes))
-    session.send_stop_signal()
-    session.disconnect()
-"""
-
 from __future__ import annotations
 import os
 import json
@@ -27,6 +10,21 @@ from websocket import WebSocketApp
 from .constants import headers as H, common as C
 from .errors import GladiaError
 import requests
+from .ws_models import (
+    events,
+    SpeechEvent,
+    Transcript,
+    Translation,
+    NamedEntityRecognition,
+    SentimentAnalysis,
+    PostTranscript,
+    FinalTranscript,
+    Chapterization,
+    Summarization,
+    AudioChunkAcknowledgment,
+    StopRecordingAcknowledgment,
+    LifecycleEvent,
+)
 
 # Import for type hints - avoid circular import
 if TYPE_CHECKING:
@@ -36,7 +34,6 @@ __all__ = [
     "GladiaWebsocketClient",
     "GladiaWebsocketClientSession",
     "InitializeSessionRequest",
-    "events",
 ]
 
 
@@ -93,24 +90,6 @@ def _dataclass_to_dict(obj: Any, exclude_none: bool = True) -> Any:
     
     return result
 
-
-class events:
-    AUDIO_CHUNK = "audio_chunk"
-    STOP_RECORDING = "stop_recording"
-    SPEECH_START = "speech_start"
-    SPEECH_END = "speech_end"
-    TRANSCRIPT = "transcript"
-    TRANSLATION = "translation"
-    NAMED_ENTITY_RECOGNITION = "named_entity_recognition"
-    SENTIMENT_ANALYSIS = "sentiment_analysis"
-    POST_TRANSCRIPTION = "post_transcript"
-    FINAL_TRANSCRIPTION = "post_final_transcript"
-    CHAPTERIZATION = "post_chapterization"
-    SUMMARIZATION = "post_summarization"
-    START_SESSION = "start_session"
-    END_SESSION = "end_session"
-    START_RECORDING = "start_recording"
-    END_RECORDING = "end_recording"
 
 @dataclass
 class InitializeSessionRequest:
@@ -387,23 +366,23 @@ class GladiaWebsocketClientSession:
         self._on_connected: Optional[Callable[[], None]] = None
         self._on_disconnected: Optional[Callable[[], None]] = None
         self._on_error: Optional[Callable[[str], None]] = None
-        # event callbacks
-        self._on_speech_start: Optional[Callable[[dict], None]] = None
-        self._on_speech_end: Optional[Callable[[dict], None]] = None
-        self._on_transcript: Optional[Callable[[dict], None]] = None
-        self._on_translation: Optional[Callable[[dict], None]] = None
-        self._on_ner: Optional[Callable[[dict], None]] = None
-        self._on_sentiment: Optional[Callable[[dict], None]] = None
-        self._on_post_transcript: Optional[Callable[[dict], None]] = None
-        self._on_final_transcript: Optional[Callable[[dict], None]] = None
-        self._on_chapterization: Optional[Callable[[dict], None]] = None
-        self._on_summarization: Optional[Callable[[dict], None]] = None
-        self._on_audio_ack: Optional[Callable[[dict], None]] = None
-        self._on_stop_ack: Optional[Callable[[dict], None]] = None
-        self._on_start_session: Optional[Callable[[dict], None]] = None
-        self._on_end_session: Optional[Callable[[dict], None]] = None
-        self._on_start_recording: Optional[Callable[[dict], None]] = None
-        self._on_end_recording: Optional[Callable[[dict], None]] = None
+        # event callbacks (typed)
+        self._on_speech_start: Optional[Callable[[SpeechEvent], None]] = None
+        self._on_speech_end: Optional[Callable[[SpeechEvent], None]] = None
+        self._on_transcript: Optional[Callable[[Transcript], None]] = None
+        self._on_translation: Optional[Callable[[Translation], None]] = None
+        self._on_ner: Optional[Callable[[NamedEntityRecognition], None]] = None
+        self._on_sentiment: Optional[Callable[[SentimentAnalysis], None]] = None
+        self._on_post_transcript: Optional[Callable[[PostTranscript], None]] = None
+        self._on_final_transcript: Optional[Callable[[FinalTranscript], None]] = None
+        self._on_chapterization: Optional[Callable[[Chapterization], None]] = None
+        self._on_summarization: Optional[Callable[[Summarization], None]] = None
+        self._on_audio_ack: Optional[Callable[[AudioChunkAcknowledgment], None]] = None
+        self._on_stop_ack: Optional[Callable[[StopRecordingAcknowledgment], None]] = None
+        self._on_start_session: Optional[Callable[[LifecycleEvent], None]] = None
+        self._on_end_session: Optional[Callable[[LifecycleEvent], None]] = None
+        self._on_start_recording: Optional[Callable[[LifecycleEvent], None]] = None
+        self._on_end_recording: Optional[Callable[[LifecycleEvent], None]] = None
 
     def get_session_info(self) -> dict:
         return {"id": self._id, "url": self._url}
@@ -426,8 +405,13 @@ class GladiaWebsocketClientSession:
                 self._on_disconnected()
 
         def on_error(ws, error):
+            # Suppress normal close-frame notifications (opcode=8 / code 1000)
+            msg = str(error)
+            if ("opcode=8" in msg) or ("1000" in msg) or ("STATUS_NORMAL" in msg):
+                # Treat as normal closure; no error callback
+                return
             if self._on_error:
-                self._on_error(str(error))
+                self._on_error(msg)
 
         def on_message(ws, message):
             try:
@@ -436,40 +420,44 @@ class GladiaWebsocketClientSession:
                 if self._on_error:
                     self._on_error("Invalid JSON from server")
                 return
-            t = data.get("type")
+            event_type = data.get("type")
             # route events
-            if t == events.SPEECH_START and self._on_speech_start:
-                self._on_speech_start(data)
-            elif t == events.SPEECH_END and self._on_speech_end:
-                self._on_speech_end(data)
-            elif t == events.TRANSCRIPT and self._on_transcript:
-                self._on_transcript(data)
-            elif t == events.TRANSLATION and self._on_translation:
-                self._on_translation(data)
-            elif t == events.NAMED_ENTITY_RECOGNITION and self._on_ner:
-                self._on_ner(data)
-            elif t == events.SENTIMENT_ANALYSIS and self._on_sentiment:
-                self._on_sentiment(data)
-            elif t == events.POST_TRANSCRIPTION and self._on_post_transcript:
-                self._on_post_transcript(data)
-            elif t == events.FINAL_TRANSCRIPTION and self._on_final_transcript:
-                self._on_final_transcript(data)
-            elif t == events.CHAPTERIZATION and self._on_chapterization:
-                self._on_chapterization(data)
-            elif t == events.SUMMARIZATION and self._on_summarization:
-                self._on_summarization(data)
-            elif t == events.AUDIO_CHUNK and self._on_audio_ack:
-                self._on_audio_ack(data)
-            elif t == events.STOP_RECORDING and self._on_stop_ack:
-                self._on_stop_ack(data)
-            elif t == events.START_SESSION and self._on_start_session:
-                self._on_start_session(data)
-            elif t == events.END_SESSION and self._on_end_session:
-                self._on_end_session(data)
-            elif t == events.START_RECORDING and self._on_start_recording:
-                self._on_start_recording(data)
-            elif t == events.END_RECORDING and self._on_end_recording:
-                self._on_end_recording(data)
+            try:
+                if event_type == events.SPEECH_START and self._on_speech_start:
+                    self._on_speech_start(SpeechEvent.model_validate(data))
+                elif event_type == events.SPEECH_END and self._on_speech_end:
+                    self._on_speech_end(SpeechEvent.model_validate(data))
+                elif event_type == events.TRANSCRIPT and self._on_transcript:
+                    self._on_transcript(Transcript.model_validate(data))
+                elif event_type == events.TRANSLATION and self._on_translation:
+                    self._on_translation(Translation.model_validate(data))
+                elif event_type == events.NAMED_ENTITY_RECOGNITION and self._on_ner:
+                    self._on_ner(NamedEntityRecognition.model_validate(data))
+                elif event_type == events.SENTIMENT_ANALYSIS and self._on_sentiment:
+                    self._on_sentiment(SentimentAnalysis.model_validate(data))
+                elif event_type == events.POST_TRANSCRIPTION and self._on_post_transcript:
+                    self._on_post_transcript(PostTranscript.model_validate(data))
+                elif event_type == events.FINAL_TRANSCRIPTION and self._on_final_transcript:
+                    self._on_final_transcript(FinalTranscript.model_validate(data))
+                elif event_type == events.CHAPTERIZATION and self._on_chapterization:
+                    self._on_chapterization(Chapterization.model_validate(data))
+                elif event_type == events.SUMMARIZATION and self._on_summarization:
+                    self._on_summarization(Summarization.model_validate(data))
+                elif event_type == events.AUDIO_CHUNK and self._on_audio_ack:
+                    self._on_audio_ack(AudioChunkAcknowledgment.model_validate(data))
+                elif event_type == events.STOP_RECORDING and self._on_stop_ack:
+                    self._on_stop_ack(StopRecordingAcknowledgment.model_validate(data))
+                elif event_type == events.START_SESSION and self._on_start_session:
+                    self._on_start_session(LifecycleEvent.model_validate(data))
+                elif event_type == events.END_SESSION and self._on_end_session:
+                    self._on_end_session(LifecycleEvent.model_validate(data))
+                elif event_type == events.START_RECORDING and self._on_start_recording:
+                    self._on_start_recording(LifecycleEvent.model_validate(data))
+                elif event_type == events.END_RECORDING and self._on_end_recording:
+                    self._on_end_recording(LifecycleEvent.model_validate(data))
+            except Exception as e:
+                if self._on_error:
+                    self._on_error(f"Failed to parse event {event_type}: {e}")
 
         self._ws = WebSocketApp(self._url, header=headers, on_open=on_open, on_close=on_close, on_error=on_error, on_message=on_message)
         self._thread = threading.Thread(target=self._ws.run_forever, kwargs={"ping_interval": 20, "ping_timeout": 10}, daemon=True)
@@ -531,50 +519,75 @@ class GladiaWebsocketClientSession:
     def set_on_error_callback(self, cb: Callable[[str], None]):
         self._on_error = cb
 
-    def set_on_speech_started_callback(self, cb: Callable[[dict], None]):
+    def set_on_speech_started_callback(self, cb: Callable[[SpeechEvent], None]):
         self._on_speech_start = cb
 
-    def set_on_speech_ended_callback(self, cb: Callable[[dict], None]):
+    def set_on_speech_ended_callback(self, cb: Callable[[SpeechEvent], None]):
         self._on_speech_end = cb
 
-    def set_on_transcript_callback(self, cb: Callable[[dict], None]):
+    def set_on_transcript_callback(self, cb: Callable[[Transcript], None]):
         self._on_transcript = cb
 
-    def set_on_translation_callback(self, cb: Callable[[dict], None]):
+    def set_on_translation_callback(self, cb: Callable[[Translation], None]):
         self._on_translation = cb
 
-    def set_on_named_entity_recognition_callback(self, cb: Callable[[dict], None]):
+    def set_on_named_entity_recognition_callback(self, cb: Callable[[NamedEntityRecognition], None]):
         self._on_ner = cb
 
-    def set_on_sentiment_analysis_callback(self, cb: Callable[[dict], None]):
+    def set_on_sentiment_analysis_callback(self, cb: Callable[[SentimentAnalysis], None]):
         self._on_sentiment = cb
 
-    def set_on_post_transcript_callback(self, cb: Callable[[dict], None]):
+    def set_on_post_transcript_callback(self, cb: Callable[[PostTranscript], None]):
         self._on_post_transcript = cb
 
-    def set_on_final_transcript_callback(self, cb: Callable[[dict], None]):
+    def set_on_final_transcript_callback(self, cb: Callable[[FinalTranscript], None]):
         self._on_final_transcript = cb
 
-    def setOnChapterizationCallback(self, cb: Callable[[dict], None]):
+    def setOnChapterizationCallback(self, cb: Callable[[Chapterization], None]):
         self._on_chapterization = cb
 
-    def setOnSummarizationCallback(self, cb: Callable[[dict], None]):
+    def setOnSummarizationCallback(self, cb: Callable[[Summarization], None]):
         self._on_summarization = cb
 
-    def setOnAudioChunkAcknowledgedCallback(self, cb: Callable[[dict], None]):
+    def setOnAudioChunkAcknowledgedCallback(self, cb: Callable[[AudioChunkAcknowledgment], None]):
         self._on_audio_ack = cb
 
-    def setOnStopRecordingAcknowledgedCallback(self, cb: Callable[[dict], None]):
+    def setOnStopRecordingAcknowledgedCallback(self, cb: Callable[[StopRecordingAcknowledgment], None]):
         self._on_stop_ack = cb
 
-    def setOnStartSessionCallback(self, cb: Callable[[dict], None]):
+    def setOnStartSessionCallback(self, cb: Callable[[LifecycleEvent], None]):
         self._on_start_session = cb
 
-    def setOnEndSessionCallback(self, cb: Callable[[dict], None]):
+    def setOnEndSessionCallback(self, cb: Callable[[LifecycleEvent], None]):
         self._on_end_session = cb
 
-    def setOnStartRecordingCallback(self, cb: Callable[[dict], None]):
+    def setOnStartRecordingCallback(self, cb: Callable[[LifecycleEvent], None]):
         self._on_start_recording = cb
 
-    def setOnEndRecordingCallback(self, cb: Callable[[dict], None]):
+    def setOnEndRecordingCallback(self, cb: Callable[[LifecycleEvent], None]):
         self._on_end_recording = cb
+
+    # CamelCase aliases matching the provided C++-style API
+    def setOnSpeechStartedCallback(self, cb: Callable[[SpeechEvent], None]):
+        self.set_on_speech_started_callback(cb)
+
+    def setOnSpeechEndedCallback(self, cb: Callable[[SpeechEvent], None]):
+        self.set_on_speech_ended_callback(cb)
+
+    def setOnTranscriptCallback(self, cb: Callable[[Transcript], None]):
+        self.set_on_transcript_callback(cb)
+
+    def setOnTranslationCallback(self, cb: Callable[[Translation], None]):
+        self.set_on_translation_callback(cb)
+
+    def setOnNamedEntityRecognitionCallback(self, cb: Callable[[NamedEntityRecognition], None]):
+        self.set_on_named_entity_recognition_callback(cb)
+
+    def setOnSentimentAnalysisCallback(self, cb: Callable[[SentimentAnalysis], None]):
+        self.set_on_sentiment_analysis_callback(cb)
+
+    def setOnPostTranscriptCallback(self, cb: Callable[[PostTranscript], None]):
+        self.set_on_post_transcript_callback(cb)
+
+    def setOnFinalTranscriptCallback(self, cb: Callable[[FinalTranscript], None]):
+        self.set_on_final_transcript_callback(cb)

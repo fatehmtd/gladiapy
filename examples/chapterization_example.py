@@ -7,7 +7,7 @@ import time
 from typing import Any
 
 from gladiapy.v2 import GladiaRestClient, GladiaError
-from gladiapy.v2.rest_models import TranscriptionRequest
+from gladiapy.v2.rest_models import TranscriptionRequest, ChapterizationResult
 
 
 def main() -> bool:
@@ -33,7 +33,7 @@ def main() -> bool:
 
         request = TranscriptionRequest(
             audio_url=upload_result.audio_url,
-            chapterization=True,
+            chapterization=True,  # Enable chapterization
         )
         print("Starting transcription with chapterization...")
         job = client.pre_recorded(request)
@@ -62,42 +62,33 @@ def main() -> bool:
 
         transcription = result.result.transcription
 
+        # Print full transcript
+        print("\nFull Transcript")
+        print("-" * 40)
+        print(transcription.full_transcript)
+
         print("\n" + "-" * 40)
         print("Chapterization Analysis")
         print("-" * 40)
 
-        # Prefer top-level chapterization if present; otherwise check nested
-        chapters_obj = None
-        rr = getattr(result.result, "chapterization", None)
-        if rr is not None:
-            chapters_obj = rr
-        if chapters_obj is None and transcription is not None:
-            chapters_obj = getattr(transcription, "chapterization", None)
+        # retrieve chapters
+        chapterization_result = result.result.chapterization       
 
-        if chapters_obj is not None:
-            _print_chapters(chapters_obj)
+        if chapterization_result is not None:
+            print_chapters(chapterization_result)
         else:
             print("No chapterization data available.")
 
         # Metadata
-        if getattr(result.result, "metadata", None):
-            meta = result.result.metadata
+        meta = result.result.metadata
+        if meta is not None:
             print("\nMetadata")
             print("-" * 40)
-            print(f"Audio duration: {getattr(meta, 'audio_duration', 0):.1f}s")
-            print(f"Processing time: {getattr(meta, 'transcription_time', 0):.1f}s")
-            print(f"Billing time: {getattr(meta, 'billing_time', 0):.1f}s")
+            print(f"Audio duration: {meta.audio_duration:.1f}s")
+            print(f"Processing time: {meta.transcription_time:.1f}s")
+            print(f"Billing time: {meta.billing_time:.1f}s")
         else:
             print("No chapterization data available.")
-
-        # Minimal metadata
-            if hasattr(result.result, "metadata") and result.result.metadata:
-                meta = result.result.metadata
-                print("\nMetadata")
-            print("-" * 40)
-            print(f"Audio duration: {getattr(meta, 'audio_duration', 0):.1f}s")
-            print(f"Processing time: {getattr(meta, 'transcription_time', 0):.1f}s")
-            print(f"Billing time: {getattr(meta, 'billing_time', 0):.1f}s")
 
         return True
     except GladiaError as e:
@@ -117,59 +108,13 @@ def main() -> bool:
                 pass
 
 
-def analyze_content_structure(text: str):
-    """
-    Simple content structure analysis for demonstration.
-    """
-    import re
-    
-    analysis = {}
-    
-    # Basic statistics
-    # ...existing code...
-    analysis['Total characters'] = len(text)
-    analysis['Sentences'] = len([s for s in text.split('.') if s.strip()])
-    
-    # Look for repeated phrases (might indicate sections)
-    words = text.lower().split()
-    word_freq = {}
-    for word in words:
-        word_freq[word] = word_freq.get(word, 0) + 1
-    
-    # Find most common words (excluding common stop words)
-    stop_words = {'the', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for', 'of', 'with', 'by', 'is', 'this', 'that'}
-    common_words = [(word, count) for word, count in word_freq.items() 
-                   if count > 1 and word not in stop_words and len(word) > 2]
-    common_words.sort(key=lambda x: x[1], reverse=True)
-    
-    if common_words:
-        analysis['Most repeated words'] = ', '.join([f"{word}({count})" for word, count in common_words[:5]])
-    
-    # Look for numbers (might indicate structure)
-    numbers = re.findall(r'\b(?:one|two|three|four|five|six|seven|eight|nine|ten|\d+)\b', text.lower())
-    if numbers:
-        analysis['Numbers/counts found'] = ', '.join(set(numbers))
-    
-    return analysis
-
-
-def _print_chapters(chapters_obj: Any) -> None:
+def print_chapters(chapterization_result: ChapterizationResult) -> None:
     # Handle the ChapterizationResult model or plain structures
-    payload = chapters_obj
-    if hasattr(chapters_obj, "results"):
-        payload = getattr(chapters_obj, "results")
-
-    if isinstance(payload, dict):
-        for k, v in payload.items():
-            s = str(v)
-            print(f"{k}: {s[:200]}{'...' if len(s) > 200 else ''}")
-    elif isinstance(payload, (list, tuple)):
-        for i, item in enumerate(payload, 1):
-            s = str(item)
-            print(f"{i}. {s[:200]}{'...' if len(s) > 200 else ''}")
-    else:
-        s = str(payload)
-        print(s if len(s) <= 500 else s[:500] + "...")
+    print("Chapterization result: ", chapterization_result.success, ", is empty: ", chapterization_result.is_empty)
+    if(chapterization_result.success and chapterization_result.results):
+        for _, chapter in enumerate(chapterization_result.results):
+            print("chapter: ", chapter)
+            
 
 
 if __name__ == "__main__":

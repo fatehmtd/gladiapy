@@ -39,7 +39,7 @@ def main():
         
         print(f"Uploading audio: {os.path.basename(test_wav)}")
         upload_result = client.upload(test_wav)
-        print(f"✓ Upload successful: {upload_result.audio_url}")
+        print(f" Upload successful: {upload_result.audio_url}")
 
         # Configure subtitles with basic settings
         # Create transcription request with subtitles enabled (basic)
@@ -85,7 +85,7 @@ def main():
         # Access subtitle data
         if transcription.subtitles:
             print(f"\nSUBTITLE FILES GENERATED:")
-            print(f"✓ Generated {len(transcription.subtitles)} subtitle format(s)")
+            print(f" Generated {len(transcription.subtitles)} subtitle format(s)")
             
             for i, subtitle in enumerate(transcription.subtitles):
                 print(f"\n--- SUBTITLE FORMAT {i+1}: {subtitle.format.upper()} ---")
@@ -112,7 +112,7 @@ def main():
                 try:
                     with open(subtitle_path, 'w', encoding='utf-8') as f:
                         f.write(subtitle.subtitles)
-                    print(f"✓ Saved subtitle file: {subtitle_filename}")
+                    print(f" Saved subtitle file: {subtitle_filename}")
                     print(f"  Full path: {subtitle_path}")
                 except Exception as e:
                     print(f"⚠ Failed to save subtitle file: {e}")
@@ -176,7 +176,7 @@ def main():
         # Clean up
         try:
             client.delete_result(job.id)
-            print(f"\n✓ Cleaned up job: {job.id}")
+            print(f"\n Cleaned up job: {job.id}")
         except Exception as e:
             print(f"WARNING: Failed to delete job {job.id}: {e}")
 

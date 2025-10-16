@@ -39,7 +39,7 @@ def main():
         
         print(f"Uploading audio: {os.path.basename(test_wav)}")
         upload_result = client.upload(test_wav)
-        print(f"✓ Upload successful: {upload_result.audio_url}")
+        print(f" Upload successful: {upload_result.audio_url}")
 
         # First, do a baseline transcription without custom vocabulary
         print("\n--- BASELINE TRANSCRIPTION (No Custom Settings) ---")
@@ -171,7 +171,7 @@ def main():
         print(f"\nIMPROVEMENT ANALYSIS:")
         
         if baseline_transcript != enhanced_transcript:
-            print("✓ Transcription was modified by custom settings")
+            print(" Transcription was modified by custom settings")
             
             # Check for specific improvements
             improvements = []
@@ -197,7 +197,7 @@ def main():
                 print("Manual review may be needed to assess quality improvements")
         
         else:
-            print("ⓘ Transcription identical to baseline")
+            print("Transcription identical to baseline")
             print("This could mean:")
             print("  - The original transcription was already accurate")
             print("  - Custom settings didn't match the audio content")
@@ -247,7 +247,7 @@ def main():
         # Clean up
         try:
             client.delete_result(enhanced_job.id)
-            print(f"\n✓ Cleaned up job: {enhanced_job.id}")
+            print(f"\n Cleaned up job: {enhanced_job.id}")
         except Exception as e:
             print(f"WARNING: Failed to delete job {enhanced_job.id}: {e}")
 
@@ -273,5 +273,4 @@ if __name__ == "__main__":
         print("for domain-specific, technical, or specialized content.")
     else:
         print("FAILED: Custom vocabulary & spelling example encountered issues.")
-        print("Check your API key, audio file, and feature availability.")
     print("=" * 60)

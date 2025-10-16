@@ -82,6 +82,38 @@ class SummarizationResult(BaseModel):
     error: Optional[Dict[str, Any]] = None
     results: Optional[Any] = None
 
+class SentimentAnalysisResult(BaseModel):
+    """Sentiment analysis results."""
+    success: Optional[bool] = None
+    is_empty: Optional[bool] = None
+    exec_time: Optional[float] = None
+    error: Optional[Dict[str, Any]] = None
+
+    class ResultItem(BaseModel):
+        """Individual sentiment analysis result item."""
+        text: str
+        sentiment: str
+        start: float
+        end: float
+        channel: int
+
+    results: Optional[List[ResultItem]] = None
+
+class TranslationResult(BaseModel):
+    """Translation results for multiple languages."""
+    success: Optional[bool] = None
+    is_empty: Optional[bool] = None
+    exec_time: Optional[float] = None
+    error: Optional[Any] = None
+
+    class TranslationEntry(BaseModel):
+        """Translation entry for a specific language."""
+        languages: List[str]
+        full_transcript: str
+        utterances: List[Utterance]
+    
+    results: Optional[List[TranslationEntry]] = None
+
 class TranscriptionObjectResult(BaseModel):
     """
     Complete transcription results with text, utterances, subtitles, translations,
@@ -91,22 +123,20 @@ class TranscriptionObjectResult(BaseModel):
     languages: List[str] = Field(default_factory=list)
     utterances: List[Utterance] = Field(default_factory=list)
     subtitles: List[Subtitle] = Field(default_factory=list)
-    translation: Optional[Dict[str, 'TranscriptionObjectResult']] = None
     chapterization: Optional[ChapterizationResult] = None
     named_entity_recognition: Optional[NamedEntityRecognitionResult] = None
-    summarization: Optional[SummarizationResult] = None
 
 class TranscriptionObject(BaseModel):
-    """
-    Container for transcription results, processing metadata, translations,
+    """Container for transcription results, processing metadata, translations,
     chapterization, and named entity recognition.
     """
     metadata: Metadata
     transcription: Optional[TranscriptionObjectResult] = None
-    translation: Optional[Dict[str, 'TranscriptionObjectResult']] = None
+    translation: Optional[TranslationResult] = None
     chapterization: Optional[ChapterizationResult] = None
     named_entity_recognition: Optional[NamedEntityRecognitionResult] = None
     summarization: Optional[SummarizationResult] = None
+    sentiment_analysis: Optional[SentimentAnalysisResult] = None
 
 class TranscriptionFile(BaseModel):
     """Audio file information for transcription jobs."""

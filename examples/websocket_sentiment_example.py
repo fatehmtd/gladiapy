@@ -4,6 +4,7 @@ import wave
 import threading
 from gladiapy.v2 import GladiaWebsocketClient
 from gladiapy.v2.ws import InitializeSessionRequest
+from gladiapy.v2.ws_models import Transcript, SentimentAnalysis
 
 
 def read_wav_pcm_data(path: str) -> bytes:
@@ -70,8 +71,8 @@ def main():
             sample_rate=InitializeSessionRequest.SampleRate.SAMPLE_RATE_16000,
             channels=1,
             model=InitializeSessionRequest.Model.SOLARIA_1,
-            endpointing=1.5,
-            maximum_duration_without_endpointing=45,
+            endpointing=0.5,
+            maximum_duration_without_endpointing=5,
             realtime_processing=realtime_processing,  # Enable sentiment analysis
             messages_config=messages_config,
         )
@@ -106,70 +107,27 @@ def main():
         def on_error(msg):
             print(f"WebSocket Error: {msg}")
         
-        def on_partial_transcript(data):
+        def on_partial_transcript(data: Transcript):
             """Handle partial transcripts"""
             try:
-                if isinstance(data, dict) and 'data' in data:
-                    utterance = data['data'].get('utterance', {})
-                    text = utterance.get('text', '').strip()
-                    if text:
-                        print(f"[TRANSCRIPT] {text}")
+                text = (data.data.utterance.text or "").strip()
+                if text:
+                    print(f"[TRANSCRIPT] {text}")
             except Exception as e:
                 print(f"Error processing partial transcript: {e}")
         
-        def on_sentiment_analysis(data):
+        def on_sentiment_analysis(data: SentimentAnalysis):
             """Handle real-time sentiment analysis events"""
             try:
                 with websocket_lock:
                     sentiment_data.append(data)
-                
+
                 print(f"[SENTIMENT] Sentiment event received")
-                
-                if isinstance(data, dict):
-                    # Extract sentiment information
-                    if 'data' in data:
-                        sentiment_info = data['data']
-                        
-                        # Look for sentiment content
-                        if 'sentiment' in sentiment_info:
-                            sentiment_result = sentiment_info['sentiment']
-                            
-                            # Handle different sentiment data structures
-                            if isinstance(sentiment_result, dict):
-                                # Extract sentiment fields
-                                sentiment_label = sentiment_result.get('label', 'unknown')
-                                confidence = sentiment_result.get('confidence', 0.0)
-                                score = sentiment_result.get('score', 0.0)
-                                
-                                print(f"[SENTIMENT] Label: {sentiment_label}, Confidence: {confidence:.2f}, Score: {score:.2f}")
-                                
-                                # Show additional sentiment details if available
-                                if 'emotions' in sentiment_result:
-                                    emotions = sentiment_result['emotions']
-                                    print(f"[EMOTIONS] {emotions}")
-                                
-                            elif isinstance(sentiment_result, str):
-                                print(f"[SENTIMENT] {sentiment_result}")
-                            else:
-                                print(f"[SENTIMENT] {sentiment_result}")
-                        
-                        # Alternative: look for utterance with sentiment info
-                        elif 'utterance' in sentiment_info:
-                            utterance = sentiment_info['utterance']
-                            text = utterance.get('text', '')
-                            
-                            # Check if utterance has sentiment attributes
-                            sentiment_attrs = [key for key in utterance.keys() if 'sentiment' in key.lower()]
-                            if sentiment_attrs:
-                                print(f"[UTTERANCE SENTIMENT] Text: \"{text}\"")
-                                for attr in sentiment_attrs:
-                                    print(f"  {attr}: {utterance[attr]}")
-                    
-                    # Debug: show structure if sentiment not found as expected
-                    if 'data' not in data or 'sentiment' not in data.get('data', {}):
-                        print(f"Sentiment data structure: {list(data.keys()) if isinstance(data, dict) else type(data)}")
-                        if isinstance(data, dict) and 'data' in data:
-                            print(f"  Data keys: {list(data['data'].keys())}")
+
+                # Print simple summary per result item
+                if data.data and data.data.results:
+                    for r in data.data.results[:3]:
+                        print(f"[SENTIMENT] {r.sentiment} ({r.emotion}) {r.start:.2f}-{r.end:.2f}s: {r.text}")
             
             except Exception as e:
                 print(f"Error processing sentiment: {e}")
@@ -308,7 +266,7 @@ def main():
         # Clean up
         try:
             client.delete_result(session_id)
-            print(f"\n✓ Cleaned up session: {session_id}")
+            print(f"\n Cleaned up session: {session_id}")
         except Exception as e:
             print(f"WARNING: Failed to delete session {session_id}: {e}")
 
