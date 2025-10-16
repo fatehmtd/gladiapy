@@ -4,6 +4,7 @@ import wave
 import threading
 from gladiapy.v2 import GladiaWebsocketClient
 from gladiapy.v2.ws import InitializeSessionRequest
+from gladiapy.v2.ws_models import Transcript, Translation
 
 
 def read_wav_pcm_data(path: str) -> bytes:
@@ -119,57 +120,27 @@ def main():
         def on_error(msg):
             print(f"WebSocket Error: {msg}")
         
-        def on_partial_transcript(data):
+        def on_partial_transcript(data: Transcript):
             """Handle partial transcripts (original language)"""
             try:
-                if isinstance(data, dict) and 'data' in data:
-                    utterance = data['data'].get('utterance', {})
-                    text = utterance.get('text', '').strip()
-                    if text:
-                        print(f"[ORIGINAL] {text}")
+                text = (data.data.utterance.text or "").strip()
+                if text:
+                    print(f"[ORIGINAL] {text}")
             except Exception as e:
                 print(f"Error processing partial transcript: {e}")
         
-        def on_translation(data):
+        def on_translation(data: Translation):
             """Handle real-time translation events"""
             try:
                 with websocket_lock:
                     translation_data.append(data)
-                
+
                 print(f"[TRANSLATION] Translation event received")
-                
-                if isinstance(data, dict):
-                    # Extract translation information
-                    if 'data' in data:
-                        trans_data = data['data']
-                        
-                        # Look for translation content
-                        if 'translation' in trans_data:
-                            translation_info = trans_data['translation']
-                            
-                            # Handle different translation data structures
-                            if isinstance(translation_info, dict):
-                                for lang, content in translation_info.items():
-                                    if isinstance(content, dict) and 'text' in content:
-                                        print(f"[{lang.upper()}] {content['text']}")
-                                    elif isinstance(content, str):
-                                        print(f"[{lang.upper()}] {content}")
-                            else:
-                                print(f"[TRANSLATION] {translation_info}")
-                        
-                        # Alternative: look for utterance with language info
-                        elif 'utterance' in trans_data:
-                            utterance = trans_data['utterance']
-                            text = utterance.get('text', '')
-                            language = utterance.get('language', 'unknown')
-                            if text and language != 'en':  # Non-English might be translation
-                                print(f"[{language.upper()}] {text}")
-                    
-                    # Debug: show structure if translation not found as expected
-                    if 'data' not in data or 'translation' not in data.get('data', {}):
-                        print(f"Translation data structure: {list(data.keys()) if isinstance(data, dict) else type(data)}")
-                        if isinstance(data, dict) and 'data' in data:
-                            print(f"  Data keys: {list(data['data'].keys())}")
+
+                # Print translated utterance text and language
+                trans_u = data.data.translated_utterance if data.data else None
+                if trans_u and trans_u.text:
+                    print(f"[{trans_u.language.upper()}] {trans_u.text}")
             
             except Exception as e:
                 print(f"Error processing translation: {e}")

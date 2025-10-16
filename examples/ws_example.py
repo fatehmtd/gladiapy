@@ -4,6 +4,7 @@ import wave
 import threading
 from gladiapy.v2 import GladiaWebsocketClient
 from gladiapy.v2.ws import InitializeSessionRequest
+from gladiapy.v2.ws_models import Transcript, FinalTranscript
 
 
 def read_wav_pcm_data(path: str) -> bytes:
@@ -94,17 +95,15 @@ def main():
     def on_error(msg):
         print(f"WebSocket Error: {msg}")
     
-    def on_partial_transcript(data):
+    def on_partial_transcript(data: Transcript):
         try:
-            if isinstance(data, dict) and 'data' in data:
-                utterance = data['data'].get('utterance', {})
-                text = utterance.get('text', '').strip()
-                if text:
-                    print(f"[PARTIAL] {text}")
+            text = (data.data.utterance.text or "").strip()
+            if text:
+                print(f"[PARTIAL] {text}")
         except Exception as e:
             print(f"Error processing partial transcript: {e}")
     
-    def on_final_transcript(data):
+    def on_final_transcript(data: FinalTranscript):
         nonlocal callback_transcription_data
         with websocket_lock:
             final_transcripts_received.append(data)
@@ -113,59 +112,35 @@ def main():
         
         # Extract and display transcription data from callback
         try:
-            if isinstance(data, dict) and 'data' in data:
-                callback_data = data['data']
-                if 'transcription' in callback_data:
-                    with websocket_lock:
-                        callback_transcription_data = callback_data
-                    trans_data = callback_data['transcription']
-                    
-                    print("\nTRANSCRIPTION RECEIVED VIA CALLBACK:")
-                    print("=" * 50)
-                    
-                    if 'full_transcript' in trans_data:
-                        print(f"Full Transcript: \"{trans_data['full_transcript']}\"")
-                    
-                    if 'languages' in trans_data:
-                        print(f"Languages: {trans_data['languages']}")
-                    
-                    if 'utterances' in trans_data and trans_data['utterances']:
-                        print(f"Utterances: {len(trans_data['utterances'])}")
-                        
-                        # Show first utterance
-                        utterance = trans_data['utterances'][0]
-                        print(f"\nFirst Utterance:")
-                        print(f"   Text: \"{utterance.get('text', 'N/A')}\"")
-                        print(f"   Time: {utterance.get('start', 0):.2f}s - {utterance.get('end', 0):.2f}s")
-                        print(f"   Confidence: {utterance.get('confidence', 0):.2f}")
-                        
-                        # Show first few words
-                        if 'words' in utterance and utterance['words']:
-                            print(f"   First 3 words:")
-                            for j, word in enumerate(utterance['words'][:3]):
-                                word_text = word.get('word', '').strip()
-                                word_start = word.get('start', 0)
-                                word_end = word.get('end', 0)
-                                word_conf = word.get('confidence', 0)
-                                print(f"     {j+1}. \"{word_text}\" [{word_start:.2f}s-{word_end:.2f}s] conf: {word_conf:.2f}")
-                    
-                    # Show metadata if available
-                    if 'metadata' in callback_data:
-                        meta = callback_data['metadata']
-                        print(f"\nCallback Metadata:")
-                        print(f"   Audio duration: {meta.get('audio_duration', 'N/A')}s")
-                        print(f"   Processing time: {meta.get('transcription_time', 'N/A')}s")
-                        print(f"   Billing time: {meta.get('billing_time', 'N/A')}s")
-                    
-                    print("=" * 50)
-                    
-                    # Signal that we got the final result
-                    websocket_finished.set()
-                else:
-                    print(f"Callback data structure: {list(callback_data.keys()) if isinstance(callback_data, dict) else 'Not a dict'}")
-            else:
-                print(f"Callback data keys: {list(data.keys()) if isinstance(data, dict) else 'Not a dict'}")
-                print(f"Callback data preview: {str(data)[:200]}...")
+            final_data = data.data
+            trans = final_data.transcription
+            if trans:
+                with websocket_lock:
+                    callback_transcription_data = trans.model_dump()
+                print("\nTRANSCRIPTION RECEIVED VIA CALLBACK:")
+                print("=" * 50)
+                print(f"Full Transcript: \"{trans.full_transcript}\"")
+                if trans.languages:
+                    print(f"Languages: {trans.languages}")
+                if trans.utterances:
+                    print(f"Utterances: {len(trans.utterances)}")
+                    u0 = trans.utterances[0]
+                    print(f"\nFirst Utterance:")
+                    print(f"   Text: \"{u0.text}\"")
+                    print(f"   Time: {u0.start:.2f}s - {u0.end:.2f}s")
+                    print(f"   Confidence: {u0.confidence:.2f}")
+                    if u0.words:
+                        print("   First 3 words:")
+                        for j, w in enumerate(u0.words[:3]):
+                            print(f"     {j+1}. \"{w.word}\" [{w.start:.2f}s-{w.end:.2f}s] conf: {w.confidence:.2f}")
+                if final_data.metadata:
+                    meta = final_data.metadata
+                    print("\nCallback Metadata:")
+                    print(f"   Audio duration: {meta.audio_duration}s")
+                    print(f"   Processing time: {meta.transcription_time}s")
+                    print(f"   Billing time: {meta.billing_time}s")
+                print("=" * 50)
+                websocket_finished.set()
         except Exception as e:
             print(f"Error processing callback data: {e}")
             print(f"Raw callback data: {data}")

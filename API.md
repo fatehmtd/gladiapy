@@ -1,6 +1,6 @@
 # gladiapy API Reference
 
-Python client library for Gladia's speech-to-text API. Provides REST and WebSocket interfaces for audio transcription with advanced processing capabilities.
+Python client library for Gladia's speech-to-text API. Provides REST and WebSocket interfaces for audio transcription with advanced processing capabilities. The WebSocket client uses typed events (Pydantic models) for safer, clearer callbacks.
 
 ## Installation
 
@@ -158,7 +158,7 @@ client.delete_result(job.id)
 
 ### GladiaWebsocketClient
 
-Client interface for real-time streaming transcription.
+Client interface for real-time streaming transcription. Events are delivered as typed models defined in `gladiapy.v2.ws_models`.
 
 ```python
 client = GladiaWebsocketClient(api_key)
@@ -212,27 +212,31 @@ Streams audio data chunk to transcription service.
 
 Signals end of audio stream to complete transcription processing.
 
-#### Event Callback Configuration
+#### Event Callback Configuration (typed)
 
-##### set_on_connected_callback(callback: callable)
+Each callback receives a typed Pydantic model from `gladiapy.v2.ws_models`.
 
-Configures handler for successful connection events.
+- `set_on_connected_callback(callback: () -> None)`
+- `set_on_disconnected_callback(callback: () -> None)`
+- `set_on_error_callback(callback: (str) -> None)`
+- `set_on_speech_started_callback(callback: (SpeechEvent) -> None)`
+- `set_on_speech_ended_callback(callback: (SpeechEvent) -> None)`
+- `set_on_transcript_callback(callback: (Transcript) -> None)`
+- `set_on_translation_callback(callback: (Translation) -> None)`
+- `set_on_named_entity_recognition_callback(callback: (NamedEntityRecognition) -> None)`
+- `set_on_sentiment_analysis_callback(callback: (SentimentAnalysis) -> None)`
+- `set_on_post_transcript_callback(callback: (PostTranscript) -> None)`
+- `set_on_final_transcript_callback(callback: (FinalTranscript) -> None)`
+- `setOnChapterizationCallback(callback: (Chapterization) -> None)`
+- `setOnSummarizationCallback(callback: (Summarization) -> None)`
+- `setOnAudioChunkAcknowledgedCallback(callback: (AudioChunkAcknowledgment) -> None)`
+- `setOnStopRecordingAcknowledgedCallback(callback: (StopRecordingAcknowledgment) -> None)`
+- `setOnStartSessionCallback(callback: (LifecycleEvent) -> None)`
+- `setOnEndSessionCallback(callback: (LifecycleEvent) -> None)`
+- `setOnStartRecordingCallback(callback: (LifecycleEvent) -> None)`
+- `setOnEndRecordingCallback(callback: (LifecycleEvent) -> None)`
 
-##### set_on_disconnected_callback(callback: callable)
-
-Configures handler for disconnection events.
-
-##### set_on_error_callback(callback: callable)
-
-Configures handler for error conditions during streaming.
-
-##### set_on_transcript_callback(callback: callable)
-
-Configures handler for partial transcript updates during real-time processing.
-
-##### set_on_final_transcript_callback(callback: callable)
-
-Configures handler for final transcription completion.
+CamelCase aliases are provided for parity with the C++ API (e.g., `setOnTranscriptCallback`).
 
 #### Session Configuration
 
@@ -269,13 +273,14 @@ config = InitializeSessionRequest(
 )
 ```
 
-#### WebSocket Streaming Example
+#### WebSocket Streaming Example (typed callbacks)
 
 ```python
 import wave
 import time
 from gladiapy.v2 import GladiaWebsocketClient
 from gladiapy.v2.ws import InitializeSessionRequest
+from gladiapy.v2.ws_models import Transcript, FinalTranscript
 
 # Load audio file
 with wave.open("audio.wav", "rb") as wav_file:
@@ -301,12 +306,14 @@ config = InitializeSessionRequest(
 
 # Create session and configure callbacks
 session = client.connect(config)
-session.set_on_transcript_callback(
-    lambda event: print(f"Partial: {event['data']['utterance']['text']}")
-)
-session.set_on_final_transcript_callback(
-    lambda event: print("Final transcript received")
-)
+def on_partial(event: Transcript):
+    print(f"Partial: {event.data.utterance.text}")
+
+def on_final(event: FinalTranscript):
+    print("Final transcript received")
+
+session.set_on_transcript_callback(on_partial)
+session.set_on_final_transcript_callback(on_final)
 
 # Stream audio in chunks
 if session.connect_and_start():
@@ -418,7 +425,7 @@ GLADIA_API_KEY=your-api-key-here
 
 ### Processing Configuration Examples
 
-Examples demonstrating each advanced feature are available in the `/examples` directory:
+Examples for each feature are in the `/examples` directory (run with `python -m ...`):
 
 - `sentiment_analysis_example.py`
 - `summarization_example.py`
