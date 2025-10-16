@@ -70,8 +70,8 @@ def main():
             sample_rate=InitializeSessionRequest.SampleRate.SAMPLE_RATE_16000,
             channels=1,
             model=InitializeSessionRequest.Model.SOLARIA_1,
-            endpointing=1.5,
-            maximum_duration_without_endpointing=45,
+            endpointing=0.5,
+            maximum_duration_without_endpointing=5,
             realtime_processing=realtime_processing,  # Enable sentiment analysis
             messages_config=messages_config,
         )
@@ -308,7 +308,7 @@ def main():
         # Clean up
         try:
             client.delete_result(session_id)
-            print(f"\n✓ Cleaned up session: {session_id}")
+            print(f"\n Cleaned up session: {session_id}")
         except Exception as e:
             print(f"WARNING: Failed to delete session {session_id}: {e}")
 

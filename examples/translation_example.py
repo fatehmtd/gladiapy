@@ -36,7 +36,7 @@ def main():
 
         translation_config = TranslationConfig(
             model="base",
-            target_languages=["fr"]
+            target_languages=["fr", "es", "de"],
         )
         request = TranscriptionRequest(
             audio_url=upload_result.audio_url,
@@ -73,36 +73,33 @@ def main():
             print("No utterances found")
             return False
         print("Original utterances:")
-        for i, utterance in enumerate(transcription.utterances[:2]):
+        for i, utterance in enumerate(transcription.utterances):
             print(f"  {i+1}. [{utterance.start:.2f}s-{utterance.end:.2f}s] {utterance.text}      Language: {utterance.language}, Confidence: {utterance.confidence}")
+            
         print("Translation status:")
-        translation_data = None
-        # Prefer transcription.translation if present, else result.result.translation
-        if hasattr(transcription, "translation") and transcription.translation:
-            translation_data = transcription.translation
-        elif hasattr(result.result, "translation") and result.result.translation:
-            translation_data = result.result.translation
-        if translation_data:
-            print("Translation data found in results")
-            for lang in ["fr", "es", "de"]:
-                print(f"{lang.capitalize()}:")
-                lang_translation = translation_data.get(lang)
-                if lang_translation and lang_translation.full_transcript:
-                    print(f"  Full text: {lang_translation.full_transcript}")
-                    if lang_translation.utterances:
-                        print(f"  Utterances ({len(lang_translation.utterances)} total):")
-                        for j, trans_utterance in enumerate(lang_translation.utterances[:2]):
-                            print(f"    {j+1}. [{trans_utterance.start:.2f}s-{trans_utterance.end:.2f}s] {trans_utterance.text}")
-                else:
-                    print("  Translation not available for this language")
+        # get translation data
+        translation_data = result.result.translation
+        if translation_data is None or not translation_data.results:
+            print("No translation data available")
+            return False
         else:
-            print("Translation data not available in results")
+            for translation_result in translation_data.results:
+                print(f"  {translation_result.languages}:")
+                print(f"    Full text: {translation_result.full_transcript}")
+                if translation_result.utterances:
+                    print(f"    Utterances ({len(translation_result.utterances)} total):")
+                    for j, trans_utterance in enumerate(translation_result.utterances):
+                        print(f"      {j+1}. [{trans_utterance.start:.2f}s-{trans_utterance.end:.2f}s] {trans_utterance.text}, confidence: {trans_utterance.confidence}")
+                else:
+                    print("    No utterances found")
+
         if result.result.metadata:
             meta = result.result.metadata
             print("Processing metadata:")
             print(f"  Audio duration: {meta.audio_duration:.1f}s")
             print(f"  Processing time: {meta.transcription_time:.1f}s")
             print(f"  Billing time: {meta.billing_time:.1f}s")
+
         print("\n" + "=" * 40)
         print("Translation configuration:")
         print(f"  Model: {translation_config.model}")

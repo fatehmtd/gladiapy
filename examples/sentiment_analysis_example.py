@@ -50,31 +50,19 @@ def main() -> bool:
             print("Error: No transcription results available")
             return False
 
-        transcription = result.result.transcription
-
         print("\n" + "-" * 40)
         print("Analysis")
         print("-" * 40)
 
-        # Prefer top-level sentiment if present
-        rr = result.result
-        if rr is not None:
-            sentiment_obj = getattr(rr, "sentiment_analysis", None)
-            if sentiment_obj is not None:
-                print(str(sentiment_obj))
-
-        # Utterance-level scan for any sentiment attributes
-        if transcription.utterances:
-            for i, utterance in enumerate(transcription.utterances[:3], 1):
-                attrs = [a for a in dir(utterance) if not a.startswith("_") and "sentiment" in a.lower()]
-                if attrs:
-                    print(f"Utterance {i} sentiment attributes: {attrs}")
-                    for a in attrs:
-                        try:
-                            v = getattr(utterance, a)
-                            print(f"  {a}: {v}")
-                        except Exception:
-                            pass
+        # print sentiment analysis
+        sentiment_analysis = result.result.sentiment_analysis
+        if sentiment_analysis is not None and sentiment_analysis.success:
+            print("Sentiment Analysis Result")
+            if sentiment_analysis.results:
+                for entry in sentiment_analysis.results:
+                    print(f"text: {entry.text}, sentiment: {entry.sentiment}, start: {entry.start:.2f}, end: {entry.end:.2f}, channel: {entry.channel}")
+        else:
+            print("No sentiment analysis data available.")                    
 
         # Minimal metadata
         if result.result.metadata:
@@ -107,47 +95,6 @@ def main() -> bool:
                 print(f"Cleaned up job: {job_id}")
             except Exception:
                 pass
-
-        print("Sentiment Analysis Example\n==========================")
-        client = GladiaRestClient(api_key)
-        try:
-            upload_result = client.upload(test_wav)
-            print(f"Upload successful! Audio URL: {upload_result.audio_url}")
-            request = TranscriptionRequest(audio_url=upload_result.audio_url, sentiment_analysis=True)
-            job = client.pre_recorded(request)
-            job_id = job.id
-            print(f"Job ID: {job_id}")
-            # Poll for completion
-            while True:
-                result = client.get_result(job_id)
-                print(f"Status: {result.status}")
-                if result.status == "done":
-                    break
-                if result.status == "error":
-                    print(f"Error: Job failed with error code {result.error_code}")
-                    return False
-                time.sleep(3)
-            print("Sentiment Analysis Result:")
-            sentiment = getattr(result.result, "sentiment_analysis", None)
-            if sentiment is not None:
-                print(sentiment)
-            else:
-                print("No sentiment analysis results available.")
-            meta = getattr(result.result, "metadata", None)
-            if meta is not None:
-                print(f"Audio duration: {getattr(meta, 'audio_duration', 0):.1f}s | Processing: {getattr(meta, 'transcription_time', 0):.1f}s | Billing: {getattr(meta, 'billing_time', 0):.1f}s")
-            client.delete_result(job_id)
-            print(f"Job cleaned up: {job_id}")
-            print("Sentiment analysis example completed.")
-            return True
-        except GladiaError as e:
-            print(f"API Error: [{e.status_code}] {e.message}")
-            if getattr(e, "request_id", None):
-                print(f"Request ID: {e.request_id}")
-            return False
-        except Exception as e:
-            print(f"Unexpected error: {e}")
-            return False
 
 if __name__ == "__main__":
     ok = main()

@@ -39,40 +39,15 @@ def main():
         
         print(f"Uploading audio: {os.path.basename(test_wav)}")
         upload_result = client.upload(test_wav)
-        print(f"✓ Upload successful: {upload_result.audio_url}")
+        print(f" Upload successful: {upload_result.audio_url}")
 
         # Configure diarization with different approaches
-        examples = [
-            {
-                "name": "Automatic Detection",
-                "config": DiarizationConfig(
-                    # Let the system automatically detect the number of speakers
-                    enhanced=True  # Use enhanced diarization for better accuracy
-                )
-            },
-            {
-                "name": "Fixed Speaker Count",
-                "config": DiarizationConfig(
-                    number_of_speakers=2,  # Assume 2 speakers
-                    enhanced=True
-                )
-            },
-            {
-                "name": "Speaker Range",
-                "config": DiarizationConfig(
+        diarization_config = DiarizationConfig(
                     min_speakers=1,  # Minimum 1 speaker
                     max_speakers=4,  # Maximum 4 speakers
                     enhanced=True
                 )
-            }
-        ]
-
-        # Try the automatic detection example
-        diarization_config = examples[0]["config"]
-        config_name = examples[0]["name"]
-        
-        print(f"\nTesting diarization with: {config_name}")
-        print(f"Configuration: enhanced={diarization_config.enhanced}")
+        print(f"\nTesting diarization with: {diarization_config}")
 
         # Create transcription request with diarization enabled
         request = TranscriptionRequest(
@@ -127,11 +102,12 @@ def main():
                 speaker_id = utterance.speaker
                 speakers.add(speaker_id)
                 
+                # group utterances by speaker
                 if speaker_id not in speaker_utterances:
                     speaker_utterances[speaker_id] = []
                 speaker_utterances[speaker_id].append(utterance)
             
-            print(f"✓ Detected speakers: {len(speakers)}")
+            print(f" Detected speakers: {len(speakers)}")
             print(f"Speaker IDs: {sorted(list(speakers)) if None not in speakers else 'Speaker identification may not be available'}")
 
             # Show detailed breakdown by speaker
@@ -190,29 +166,11 @@ def main():
             print(f"  Audio channels: {meta.number_of_distinct_channels}")
 
         print("\n" + "=" * 60)
-        print("DIARIZATION CONFIGURATION SUMMARY:")
-        print(f"  Configuration used: {config_name}")
-        if diarization_config.number_of_speakers:
-            print(f"  Fixed speaker count: {diarization_config.number_of_speakers}")
-        if diarization_config.min_speakers and diarization_config.max_speakers:
-            print(f"  Speaker range: {diarization_config.min_speakers}-{diarization_config.max_speakers}")
-        print(f"  Enhanced diarization: {diarization_config.enhanced}")
-
-        # Show alternative configurations
-        print(f"\nOTHER AVAILABLE CONFIGURATIONS:")
-        for i, example in enumerate(examples[1:], 2):
-            print(f"  {i}. {example['name']}:")
-            config = example['config']
-            if config.number_of_speakers:
-                print(f"     Fixed speakers: {config.number_of_speakers}")
-            if config.min_speakers and config.max_speakers:
-                print(f"     Speaker range: {config.min_speakers}-{config.max_speakers}")
-            print(f"     Enhanced: {config.enhanced}")
 
         # Clean up
         try:
             client.delete_result(job.id)
-            print(f"\n✓ Cleaned up job: {job.id}")
+            print(f"\n Cleaned up job: {job.id}")
         except Exception as e:
             print(f"WARNING: Failed to delete job {job.id}: {e}")
 

@@ -3,7 +3,7 @@ import time
 from typing import Any
 
 from gladiapy.v2 import GladiaRestClient, GladiaError
-from gladiapy.v2.rest_models import TranscriptionRequest, SummarizationConfig
+from gladiapy.v2.rest_models import TranscriptionRequest, SummarizationConfig, SummarizationResult
 
 
 def main() -> bool:
@@ -44,27 +44,13 @@ def main() -> bool:
         if not result.result:
             print("Error: Missing result payload")
             return False
-        # Prefer top-level summarization if present; otherwise check nested in transcription
-        s = getattr(result.result, "summarization", None)
-        if s is None:
-            tr = getattr(result.result, "transcription", None)
-            if tr is not None:
-                s = getattr(tr, "summarization", None)
-        print("\nSummary\n-------")
-        if s and getattr(s, "results", None) is not None:
-            _print_summary(s.results)
-        else:
-            print("No summarization data available in the response.")
-        # Show minimal metadata
-        meta = getattr(result.result, "metadata", None)
-        if meta is not None:
-            print(f"Audio duration: {getattr(meta, 'audio_duration', 0):.1f}s | Processing: {getattr(meta, 'transcription_time', 0):.1f}s | Billing: {getattr(meta, 'billing_time', 0):.1f}s")
-
-        print("\n" + "-" * 40)
-        print("Summary")
-        print("-" * 40)
-        if s and getattr(s, "results", None) is not None:
-            _print_summary(s.results)
+        
+        # get summarization results
+        summarization = result.result.summarization
+        
+        if summarization is not None and summarization.success:
+            print("\nSummary\n-------")
+            print(summarization.results)
         else:
             print("No summarization data available in the response.")
 
@@ -95,27 +81,6 @@ def main() -> bool:
                 print(f"Cleaned up job: {job_id}")
             except Exception:
                 pass
-
-
-def _print_summary(results: Any) -> None:
-    # Handle a few common structures defensively
-    if isinstance(results, str):
-        print(results)
-        return
-    if isinstance(results, (list, tuple)):
-        for i, item in enumerate(results, 1):
-            print(f"{i}. {item}")
-        return
-    if isinstance(results, dict):
-        # Print a compact view for dict-like results
-        for k, v in results.items():
-            if isinstance(v, (str, int, float)):
-                print(f"{k}: {v}")
-            else:
-                s = str(v)
-                print(f"{k}: {s[:200]}{'...' if len(s) > 200 else ''}")
-        return
-    print(str(results))
 
 
 if __name__ == "__main__":
