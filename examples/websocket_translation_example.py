@@ -49,7 +49,7 @@ def main():
         print(f"Audio loaded: {len(audio)} bytes ({len(audio)/16000/2:.1f}s estimated)")
 
         client = GladiaWebsocketClient(api_key)
-        
+
         # Configure WebSocket session with real-time translation
         translation_config = InitializeSessionRequest.RealtimeProcessing.TranslationConfig(
             model="base",  # Use base translation model
@@ -59,7 +59,7 @@ def main():
             context_adaptation=True,
             informal=False  # Formal translation style
         )
-        
+
         realtime_processing = InitializeSessionRequest.RealtimeProcessing(
             translation=True,
             translation_config=translation_config
@@ -86,7 +86,7 @@ def main():
             realtime_processing=realtime_processing,  # Enable translation
             messages_config=messages_config,
         )
-        
+
         print("\nConfiguring WebSocket session with translation...")
         print(f"Translation model: {translation_config.model}")
         langs = translation_config.target_languages or []
@@ -120,14 +120,17 @@ def main():
         def on_error(msg):
             print(f"WebSocket Error: {msg}")
         
-        def on_partial_transcript(data: Transcript):
-            """Handle partial transcripts (original language)"""
+        def on_transcript(data: Transcript):
+            """Handle transcript events (partial or final)"""
             try:
                 text = (data.data.utterance.text or "").strip()
                 if text:
-                    print(f"[ORIGINAL] {text}")
+                    if data.data.is_final:
+                        print(f"[FINAL in transcript] {text}")
+                    else:
+                        print(f"[PARTIAL] {text}")
             except Exception as e:
-                print(f"Error processing partial transcript: {e}")
+                print(f"Error processing transcript: {e}")
         
         def on_translation(data: Translation):
             """Handle real-time translation events"""
@@ -157,29 +160,29 @@ def main():
         session.set_on_connected_callback(on_connected)
         session.set_on_disconnected_callback(on_disconnected)
         session.set_on_error_callback(on_error)
-        session.set_on_transcript_callback(on_partial_transcript)
-        session.set_on_translation_callback(on_translation)  # Translation callback
+        session.set_on_transcript_callback(on_transcript)
+        session.set_on_translation_callback(on_translation)
         session.set_on_final_transcript_callback(on_final_transcript)
 
         print("\nConnecting to WebSocket...")
         if not session.connect_and_start():
             print("ERROR: Failed to start WebSocket connection")
             return False
-        
+
         # Wait for connection
         if connection_established.wait(timeout=10):
             print("Connection confirmed, starting real-time translation streaming!")
         else:
             print("WARNING: Connection not confirmed, but proceeding...")
-        
+
         print("\nStreaming audio with real-time translation...")
         print("Watch for [ORIGINAL], [FR], [ES] messages below:")
         print("-" * 60)
-        
+
         # Stream audio
         chunk_size = 8000
         chunks_sent = 0
-        
+
         try:
             for i in range(0, len(audio), chunk_size):
                 if websocket_finished.is_set():
@@ -204,7 +207,6 @@ def main():
         except Exception as e:
             print(f"ERROR: Streaming failed: {e}")
             return False
-        
         print("-" * 60)
         
         # Wait for processing to complete

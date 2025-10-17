@@ -4,7 +4,7 @@ import wave
 import threading
 from gladiapy.v2 import GladiaWebsocketClient
 from gladiapy.v2.ws import InitializeSessionRequest
-from gladiapy.v2.ws_models import Transcript, FinalTranscript
+from gladiapy.v2.ws_models import Transcript, PostFinalTranscript
 
 
 def read_wav_pcm_data(path: str) -> bytes:
@@ -95,15 +95,18 @@ def main():
     def on_error(msg):
         print(f"WebSocket Error: {msg}")
     
-    def on_partial_transcript(data: Transcript):
+    def on_transcript(data: Transcript):
         try:
             text = (data.data.utterance.text or "").strip()
             if text:
-                print(f"[PARTIAL] {text}")
+                if data.data.is_final:
+                    print(f"[FINAL in transcript] {text}")
+                else:
+                    print(f"[PARTIAL] {text}")
         except Exception as e:
-            print(f"Error processing partial transcript: {e}")
+            print(f"Error processing transcript: {e}")
     
-    def on_final_transcript(data: FinalTranscript):
+    def on_final_transcript(data: PostFinalTranscript):
         nonlocal callback_transcription_data
         with websocket_lock:
             final_transcripts_received.append(data)
@@ -148,7 +151,7 @@ def main():
     session.set_on_connected_callback(on_connected)
     session.set_on_disconnected_callback(on_disconnected)
     session.set_on_error_callback(on_error)
-    session.set_on_transcript_callback(on_partial_transcript)  # Handle partial transcripts
+    session.set_on_transcript_callback(on_transcript)  # Handles both partial and final
     session.set_on_final_transcript_callback(on_final_transcript)
 
     print("Connecting to WebSocket...")

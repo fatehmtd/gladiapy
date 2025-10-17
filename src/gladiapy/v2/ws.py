@@ -18,7 +18,7 @@ from .ws_models import (
     NamedEntityRecognition,
     SentimentAnalysis,
     PostTranscript,
-    FinalTranscript,
+    PostFinalTranscript,
     Chapterization,
     Summarization,
     AudioChunkAcknowledgment,
@@ -374,7 +374,7 @@ class GladiaWebsocketClientSession:
         self._on_ner: Optional[Callable[[NamedEntityRecognition], None]] = None
         self._on_sentiment: Optional[Callable[[SentimentAnalysis], None]] = None
         self._on_post_transcript: Optional[Callable[[PostTranscript], None]] = None
-        self._on_final_transcript: Optional[Callable[[FinalTranscript], None]] = None
+        self._on_post_final_transcript: Optional[Callable[[PostFinalTranscript], None]] = None
         self._on_chapterization: Optional[Callable[[Chapterization], None]] = None
         self._on_summarization: Optional[Callable[[Summarization], None]] = None
         self._on_audio_ack: Optional[Callable[[AudioChunkAcknowledgment], None]] = None
@@ -435,7 +435,6 @@ class GladiaWebsocketClientSession:
                 elif event_type == events.SPEECH_END and self._on_speech_end:
                     self._on_speech_end(SpeechEvent.model_validate(data))
                 elif event_type == events.TRANSCRIPT and self._on_transcript:
-                    print(f"[WS] Routing TRANSCRIPT event : {data}")
                     self._on_transcript(Transcript.model_validate(data))
                 elif event_type == events.TRANSLATION and self._on_translation:
                     self._on_translation(Translation.model_validate(data))
@@ -444,11 +443,9 @@ class GladiaWebsocketClientSession:
                 elif event_type == events.SENTIMENT_ANALYSIS and self._on_sentiment:
                     self._on_sentiment(SentimentAnalysis.model_validate(data))
                 elif event_type == events.POST_TRANSCRIPTION and self._on_post_transcript:
-                    print(f"[WS] Routing POST_TRANSCRIPTION event: {data}")
                     self._on_post_transcript(PostTranscript.model_validate(data))
-                elif event_type == events.FINAL_TRANSCRIPTION and self._on_final_transcript:
-                    print(f"[WS] Routing FINAL_TRANSCRIPTION event : {data}")
-                    self._on_final_transcript(FinalTranscript.model_validate(data))
+                elif event_type == events.POST_FINAL_TRANSCRIPTION and self._on_post_final_transcript:
+                    self._on_post_final_transcript(PostFinalTranscript.model_validate(data))
                 elif event_type == events.CHAPTERIZATION and self._on_chapterization:
                     self._on_chapterization(Chapterization.model_validate(data))
                 elif event_type == events.SUMMARIZATION and self._on_summarization:
@@ -550,8 +547,8 @@ class GladiaWebsocketClientSession:
     def set_on_post_transcript_callback(self, cb: Callable[[PostTranscript], None]):
         self._on_post_transcript = cb
 
-    def set_on_final_transcript_callback(self, cb: Callable[[FinalTranscript], None]):
-        self._on_final_transcript = cb
+    def set_on_final_transcript_callback(self, cb: Callable[[PostFinalTranscript], None]):
+        self._on_post_final_transcript = cb
 
     def set_on_chapterization_callback(self, cb: Callable[[Chapterization], None]):
         self._on_chapterization = cb
