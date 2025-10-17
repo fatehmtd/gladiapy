@@ -219,7 +219,7 @@ def main():
         
         # Send stop signal
         print("[STREAM] Sending stop signal...")
-        session.send_stop_signal()
+        #session.send_stop_signal()
         print("[STREAM] Stop signal sent successfully")
         
     except Exception as e:

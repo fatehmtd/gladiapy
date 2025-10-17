@@ -128,6 +128,30 @@ python -m examples.subtitles_example
 python -m examples.custom_vocabulary_example
 ```
 
+### Rich Terminal UI Demo
+
+An interactive microphone streaming demo with real-time transcription and translation using a rich terminal UI (Textual):
+
+```bash
+# Install dependencies
+pip install -r rich-example/requirements.txt
+pip install -e .
+
+# Run the demo
+python rich-example/app.py
+```
+
+**Features:**
+
+- Live microphone capture and streaming to Gladia WebSocket API
+- Real-time transcription with automatic language detection
+- Live translation display
+- Interactive controls (pause/resume, finalize, clear)
+- Visual audio level meter
+- Status updates and event logging
+
+See [rich-example/README.md](rich-example/README.md) for more details.
+
 ## API Reference
 
 Complete API documentation and usage examples are available in [API.md](API.md).

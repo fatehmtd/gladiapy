@@ -435,3 +435,28 @@ Examples for each feature are in the `/examples` directory (run with `python -m 
 - `speaker_diarization_example.py`
 - `subtitles_example.py`
 - `custom_vocabulary_example.py`
+
+### Rich Terminal UI Demo
+
+The `rich-example/` directory contains an interactive microphone streaming demo with real-time transcription and translation:
+
+```bash
+# Install dependencies
+pip install -r rich-example/requirements.txt
+pip install -e .
+
+# Run the demo
+python rich-example/app.py
+```
+
+This demo showcases:
+
+- Live microphone capture with low-latency streaming
+- Real-time transcription with automatic language detection
+- Live translation to target language (English by default)
+- Rich terminal UI with Textual/Rich for visual feedback
+- Interactive controls: pause/resume (Space), finalize segment (Enter), clear display (C), quit (Q)
+- Visual audio level meter and connection status
+- Event logging for debugging
+
+The app uses `sounddevice` for microphone capture at 16 kHz mono, streams audio chunks to the WebSocket API, and displays partial and final transcripts in real-time. Translation events appear in a separate pane. See [rich-example/README.md](rich-example/README.md) for full documentation.

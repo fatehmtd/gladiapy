@@ -1,0 +1,5 @@
+textual>=0.73
+rich>=13.7
+sounddevice>=0.4.6
+numpy>=1.25
+soundfile>=0.12
