@@ -2,6 +2,11 @@
 
 This example is a rich terminal UI that captures your microphone and streams it to Gladia's WebSocket API for live transcription and translation. It uses Textual/Rich for the UI and sounddevice for low-latency microphone capture.
 
+<p align="center">
+  <img src="demo.gif" alt="Rich Terminal UI Demo" width="800">
+</p>
+
+
 Prereqs
 
 - Python 3.9+
@@ -28,3 +33,4 @@ Troubleshooting
 - If you see "No API key", set GLADIA_API_KEY and restart.
 - If audio capture fails, try selecting a different default input device in your OS.
 - On first run, Windows may prompt for microphone permissions.
+

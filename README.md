@@ -132,6 +132,10 @@ python -m examples.custom_vocabulary_example
 
 An interactive microphone streaming demo with real-time transcription and translation using a rich terminal UI (Textual):
 
+<p align="center">
+  <img src="rich-example/demo.gif" alt="Rich Terminal UI Demo" width="1024">
+</p>
+
 ```bash
 # Install dependencies
 pip install -r rich-example/requirements.txt
