@@ -401,6 +401,12 @@ class GladiaWebsocketClientSession:
                 self._on_connected()
 
         def on_close(ws, status_code, msg):
+            # Surface close reason to error callback for diagnostics
+            if self._on_error and status_code is not None:
+                try:
+                    self._on_error(f"WebSocket closed: code={status_code} msg={msg}")
+                except Exception:
+                    pass
             if self._on_disconnected:
                 self._on_disconnected()
 
@@ -421,6 +427,7 @@ class GladiaWebsocketClientSession:
                     self._on_error("Invalid JSON from server")
                 return
             event_type = data.get("type")
+            print(f"[WS] Received event type: {event_type}")
             # route events
             try:
                 if event_type == events.SPEECH_START and self._on_speech_start:
@@ -428,6 +435,7 @@ class GladiaWebsocketClientSession:
                 elif event_type == events.SPEECH_END and self._on_speech_end:
                     self._on_speech_end(SpeechEvent.model_validate(data))
                 elif event_type == events.TRANSCRIPT and self._on_transcript:
+                    print(f"[WS] Routing TRANSCRIPT event : {data}")
                     self._on_transcript(Transcript.model_validate(data))
                 elif event_type == events.TRANSLATION and self._on_translation:
                     self._on_translation(Translation.model_validate(data))
@@ -436,8 +444,10 @@ class GladiaWebsocketClientSession:
                 elif event_type == events.SENTIMENT_ANALYSIS and self._on_sentiment:
                     self._on_sentiment(SentimentAnalysis.model_validate(data))
                 elif event_type == events.POST_TRANSCRIPTION and self._on_post_transcript:
+                    print(f"[WS] Routing POST_TRANSCRIPTION event: {data}")
                     self._on_post_transcript(PostTranscript.model_validate(data))
                 elif event_type == events.FINAL_TRANSCRIPTION and self._on_final_transcript:
+                    print(f"[WS] Routing FINAL_TRANSCRIPTION event : {data}")
                     self._on_final_transcript(FinalTranscript.model_validate(data))
                 elif event_type == events.CHAPTERIZATION and self._on_chapterization:
                     self._on_chapterization(Chapterization.model_validate(data))
@@ -543,51 +553,26 @@ class GladiaWebsocketClientSession:
     def set_on_final_transcript_callback(self, cb: Callable[[FinalTranscript], None]):
         self._on_final_transcript = cb
 
-    def setOnChapterizationCallback(self, cb: Callable[[Chapterization], None]):
+    def set_on_chapterization_callback(self, cb: Callable[[Chapterization], None]):
         self._on_chapterization = cb
 
-    def setOnSummarizationCallback(self, cb: Callable[[Summarization], None]):
+    def set_on_summarization_callback(self, cb: Callable[[Summarization], None]):
         self._on_summarization = cb
 
-    def setOnAudioChunkAcknowledgedCallback(self, cb: Callable[[AudioChunkAcknowledgment], None]):
+    def set_on_audio_chunk_acknowledged_callback(self, cb: Callable[[AudioChunkAcknowledgment], None]):
         self._on_audio_ack = cb
 
-    def setOnStopRecordingAcknowledgedCallback(self, cb: Callable[[StopRecordingAcknowledgment], None]):
+    def set_on_stop_recording_acknowledged_callback(self, cb: Callable[[StopRecordingAcknowledgment], None]):
         self._on_stop_ack = cb
 
-    def setOnStartSessionCallback(self, cb: Callable[[LifecycleEvent], None]):
+    def set_on_start_session_callback(self, cb: Callable[[LifecycleEvent], None]):
         self._on_start_session = cb
 
-    def setOnEndSessionCallback(self, cb: Callable[[LifecycleEvent], None]):
+    def set_on_end_session_callback(self, cb: Callable[[LifecycleEvent], None]):
         self._on_end_session = cb
 
-    def setOnStartRecordingCallback(self, cb: Callable[[LifecycleEvent], None]):
+    def set_on_start_recording_callback(self, cb: Callable[[LifecycleEvent], None]):
         self._on_start_recording = cb
 
-    def setOnEndRecordingCallback(self, cb: Callable[[LifecycleEvent], None]):
+    def set_on_end_recording_callback(self, cb: Callable[[LifecycleEvent], None]):
         self._on_end_recording = cb
-
-    # CamelCase aliases matching the provided C++-style API
-    def setOnSpeechStartedCallback(self, cb: Callable[[SpeechEvent], None]):
-        self.set_on_speech_started_callback(cb)
-
-    def setOnSpeechEndedCallback(self, cb: Callable[[SpeechEvent], None]):
-        self.set_on_speech_ended_callback(cb)
-
-    def setOnTranscriptCallback(self, cb: Callable[[Transcript], None]):
-        self.set_on_transcript_callback(cb)
-
-    def setOnTranslationCallback(self, cb: Callable[[Translation], None]):
-        self.set_on_translation_callback(cb)
-
-    def setOnNamedEntityRecognitionCallback(self, cb: Callable[[NamedEntityRecognition], None]):
-        self.set_on_named_entity_recognition_callback(cb)
-
-    def setOnSentimentAnalysisCallback(self, cb: Callable[[SentimentAnalysis], None]):
-        self.set_on_sentiment_analysis_callback(cb)
-
-    def setOnPostTranscriptCallback(self, cb: Callable[[PostTranscript], None]):
-        self.set_on_post_transcript_callback(cb)
-
-    def setOnFinalTranscriptCallback(self, cb: Callable[[FinalTranscript], None]):
-        self.set_on_final_transcript_callback(cb)
