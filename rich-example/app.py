@@ -22,7 +22,7 @@ from gladiapy.v2.ws import InitializeSessionRequest
 from gladiapy.v2.ws_models import (
     Transcript,
     Translation,
-    FinalTranscript,
+    PostFinalTranscript,
     LifecycleEvent,
     AudioChunkAcknowledgment,
 )

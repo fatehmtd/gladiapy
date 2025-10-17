@@ -26,7 +26,7 @@ class events:
     NAMED_ENTITY_RECOGNITION = "named_entity_recognition"
     SENTIMENT_ANALYSIS = "sentiment_analysis"
     POST_TRANSCRIPTION = "post_transcript"
-    FINAL_TRANSCRIPTION = "post_final_transcript"
+    POST_FINAL_TRANSCRIPTION = "post_final_transcript"
     CHAPTERIZATION = "post_chapterization"
     SUMMARIZATION = "post_summarization"
     START_SESSION = "start_session"
@@ -71,14 +71,14 @@ SpeechEnded = SpeechEvent
 
 
 class TranscriptData(BaseModel):
-    """Data structure for transcript events."""
+    """Data structure for transcript events, can be final or partial."""
     id: str
     is_final: bool
     utterance: Utterance
 
 
 class Transcript(BaseModel):
-    """Represents a transcript event."""
+    """Represents a transcript event, can be final or partial."""
     session_id: str
     created_at: str
     type: str
@@ -271,20 +271,20 @@ class PostTranscript(BaseModel):
     data: PostTranscriptData
 
 
-class FinalTranscriptData(BaseModel):
-    """Data structure for final transcript events."""
+class PostFinalTranscriptData(BaseModel):
+    """Data structure for post final transcript events."""
     metadata: Metadata
     transcription: Optional[Transcription] = None
     translation: Optional["TranslationResultForLive"] = None
 
 
-class FinalTranscript(BaseModel):
-    """Represents the final transcript event."""
+class PostFinalTranscript(BaseModel):
+    """Represents the post final transcript event."""
     session_id: str
     created_at: str
     type: str
     error: Optional[Error] = None
-    data: FinalTranscriptData
+    data: PostFinalTranscriptData
 
 
 class SummarizationData(BaseModel):
